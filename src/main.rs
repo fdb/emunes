@@ -169,11 +169,8 @@ impl CPU {
     pub fn step(&mut self, bus: &mut Bus) {
         let opcode = bus.read(self.pc);
         let name = INSTRUCTION_NAMES[opcode as usize];
-        println!("opcode: {:02X} {}", opcode, name);
+        println!("{:04X} {:02X} {}", self.pc, opcode, name);
         self.pc += INSTRUCTION_SIZES[opcode as usize] as u16;
-        let opcode = bus.read(self.pc);
-        let name = INSTRUCTION_NAMES[opcode as usize];
-        println!("opcode: {:02X} {}", opcode, name);
     }
 
 }
@@ -373,6 +370,14 @@ fn main() {
     };
 
     console.reset();
+    console.step();
+    console.step();
+    console.step();
+    console.step();
+    console.step();
+    console.step();
+    console.step();
+    console.step();
     console.step();
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
