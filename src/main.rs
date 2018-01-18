@@ -12,6 +12,25 @@ use minifb::{Key, WindowOptions, Window};
 const WIDTH: usize = 640;
 const HEIGHT: usize = 360;
 
+const INSTRUCTION_MODES: [u8; 256] = [
+    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+    1, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 8, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3,
+    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3,
+    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+];
+
 const INSTRUCTION_SIZES: [u8; 256] = [
     1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
     2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
@@ -29,6 +48,25 @@ const INSTRUCTION_SIZES: [u8; 256] = [
     2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
     2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
     2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0
+];
+
+const INSTRUCTION_CYCLES: [u8; 256] = [
+    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
+    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
+    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
+    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
 ];
 
 const INSTRUCTION_NAMES: &'static [&'static str] = &[
@@ -130,6 +168,7 @@ bitflags! {
         const INTERRUPT_DISABLE = 1 << 2;
         const DECIMAL_MODE      = 1 << 3;
         const BREAK             = 1 << 4;
+        const UNUSED            = 1 << 5;
         const OVERFLOW          = 1 << 6;
         const NEGATIVE          = 1 << 7;
     }
@@ -145,6 +184,8 @@ pub struct CPU {
     pub flags: Flags,
 }
 
+// http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
+// http://www.oxyron.de/html/opcodes02.html
 impl CPU {
 
     pub fn new() -> CPU {
@@ -163,14 +204,41 @@ impl CPU {
         self.pc = bus.read_16(0xFFFC);
         println!("RESET PC: {:04X}", self.pc);
         self.sp = 0xFD;
-        self.flags = Flags::INTERRUPT_DISABLE;
+        self.flags = Flags::UNUSED | Flags::INTERRUPT_DISABLE;
+    }
+
+    pub fn log(&mut self, bus: &Bus) {
+        let opcode = bus.read(self.pc);
+        let arg1 = bus.read(self.pc + 1);
+        let arg2 = bus.read(self.pc + 2);
+        let name = INSTRUCTION_NAMES[opcode as usize];
+        let opcode_size = INSTRUCTION_SIZES[opcode as usize];
+        let opcode_string = match opcode_size {
+            1 => format!("{:02X}      ", opcode),
+            2 => format!("{:02X} {:02X}   ", opcode, arg1),
+            3 => format!("{:02X} {:02X} {:02X}", opcode, arg1, arg2),
+            _ => panic!("Invalid instruction size {:02X} size {}", opcode, opcode_size)
+        };
+        println!("{:04X}  {}  {}                             A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}", self.pc, opcode_string, name, self.a, self.x, self.y, self.flags, self.sp, self.cycles);
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
+        self.log(&bus);
         let opcode = bus.read(self.pc);
-        let name = INSTRUCTION_NAMES[opcode as usize];
-        println!("{:04X} {:02X} {}", self.pc, opcode, name);
+        let address_mode = INSTRUCTION_MODES[opcode as usize];
+        let address = match address_mode {
+            1 => bus.read_16(self.pc + 1),
+            5 => self.pc + 1,
+            _ => panic!("Invalid address mode {}", address_mode),
+        };
+
+        println!("Address: {:04X} mode {}", address, address_mode);
+        //
         self.pc += INSTRUCTION_SIZES[opcode as usize] as u16;
+        self.cycles += INSTRUCTION_CYCLES[opcode as usize] as u64;
+        if opcode == 0x4C {
+            self.pc = address;
+        }
     }
 
 }
@@ -370,6 +438,11 @@ fn main() {
     };
 
     console.reset();
+    // This is specifically for the nestest log.
+    // Setting the PC to 0xC000 will run automated tests.
+    // This allows it to be compared to the nestest.log.
+    // See http://www.qmtpro.com/~nes/misc/nestest.txt for more info.
+    console.cpu.pc = 0xC000;
     console.step();
     console.step();
     console.step();
