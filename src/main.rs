@@ -592,12 +592,13 @@ fn main() {
         let actual = console.log_string();
         //println!("{}", expected);
         if actual != expected {
+            println!("Processor state does not match the test logs:");
             let min = (i as i32) - 10;
             let min = if min < 0 { 0 } else { min };
             for j in min..i {
                 println!("  {}", history[j as usize]);
             }
-            println!();
+            println!("Line {}:", i + 1);
             println!("  {}\n* {}", expected, actual);
             break;
         }
