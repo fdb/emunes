@@ -225,6 +225,73 @@ impl CPU {
         self.flags = Flags::UNUSED | Flags::INTERRUPT_DISABLE;
     }
 
+    /// Set the zero flag if the value is 0.
+    pub fn set_z_flag(&mut self, v: u8) {
+        self.flags.set(Flags::ZERO, v == 0);
+    }
+
+    /// Set the negative flag if the value is negative (high bit is set).
+    pub fn set_n_flag(&mut self, v: u8) {
+        self.flags.set(Flags::NEGATIVE, (v & 0x80) != 0);
+    }
+
+    /// Set the zero flag and the negative flag.
+    pub fn set_zn_flag(&mut self, v: u8) {
+        self.set_z_flag(v);
+        self.set_n_flag(v);
+    }
+
+    pub fn push(&mut self, bus: &mut Bus, v: u8) {
+        let sp = self.sp as u16;
+        bus.write(0x100 + sp, v);
+        self.sp -= 1;
+    }
+
+    pub fn pull(&mut self, bus: &Bus) -> u8 {
+        self.sp += 1;
+        let sp = self.sp as u16;
+        bus.read(0x100 + sp)
+    }
+
+    pub fn push_16(&mut self, mut bus: &mut Bus, v: u16) {
+        let hi = (v >> 8) as u8;
+        let lo = (v & 0xFF) as u8;
+        self.push(&mut bus, hi);
+        self.push(&mut bus, lo);
+    }
+
+    pub fn pull_16(&mut self, bus: &Bus) -> u16 {
+        let lo = self.pull(&bus);
+        let hi = self.pull(&bus);
+        (hi as u16) << 8 | lo as u16
+    }
+
+    pub fn get_address(&mut self, bus: &Bus, opcode: u8) -> u16 {
+        let address_mode_num = INSTRUCTION_MODES[opcode as usize];
+        let address_mode: AddressMode = unsafe { mem::transmute(address_mode_num) };
+        let address = match address_mode {
+            AddressMode::Absolute => bus.read_16(self.pc + 1),
+            AddressMode::Immediate => self.pc + 1,
+            AddressMode::Implied => 0,
+            AddressMode::Relative => {
+                let offset = bus.read(self.pc + 1) as u16;
+                if offset < 0x80 {
+                    self.pc + 2 + offset
+                } else {
+                    self.pc + 2 + offset - 0x100
+                }
+            },
+            AddressMode::ZeroPage => bus.read(self.pc + 1) as u16,
+            _ => panic!("Invalid address mode {}", address_mode_num),
+        };
+        address
+    }
+
+    pub fn add_branch_cycles(&mut self) {
+        self.cycles += 1;
+        // FIXME: if pages are different, add another cycle.
+    }
+
     pub fn log(&mut self, bus: &Bus) {
         let opcode = bus.read(self.pc);
         let arg1 = bus.read(self.pc + 1);
@@ -237,26 +304,39 @@ impl CPU {
             3 => format!("{:02X} {:02X} {:02X}", opcode, arg1, arg2),
             _ => panic!("Invalid instruction size {:02X} size {}", opcode, opcode_size)
         };
-        println!("{:04X}  {}  {}                             A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}", self.pc, opcode_string, name, self.a, self.x, self.y, self.flags, self.sp, self.cycles);
-    }
-
-    pub fn step(&mut self, bus: &mut Bus) {
-        self.log(&bus);
-        let opcode = bus.read(self.pc);
         let address_mode_num = INSTRUCTION_MODES[opcode as usize];
         let address_mode: AddressMode = unsafe { mem::transmute(address_mode_num) };
+        let address = self.get_address(&bus, opcode);
         let address = match address_mode {
-            AddressMode::Absolute => bus.read_16(self.pc + 1),
-            AddressMode::Immediate => self.pc + 1,
-            _ => panic!("Invalid address mode {}", address_mode_num),
+            AddressMode::Absolute => format!("${:04X}", address),
+            AddressMode::Relative => format!("${:04X}", address),
+            AddressMode::Immediate => format!("#${:02X}", arg1),
+            AddressMode::Implied => "".to_owned(),
+            AddressMode::ZeroPage => format!("${:02X} = {:02X}", arg1, 0),
+            _ => "".to_owned(),
         };
 
-        println!("Address: {:04X} mode {:?}", address, address_mode);
+        println!("{:04X}  {}  {} {:27} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}", self.pc, opcode_string, name, address, self.a, self.x, self.y, self.flags, self.sp, self.cycles);
+    }
+
+    pub fn step(&mut self, mut bus: &mut Bus) {
+        self.log(&bus);
+        let opcode = bus.read(self.pc);
+        let address = self.get_address(&bus, opcode);
+
+        //println!("Address: {:04X} mode {:?}", address, address_mode);
         //
         self.pc += INSTRUCTION_SIZES[opcode as usize] as u16;
         self.cycles += INSTRUCTION_CYCLES[opcode as usize] as u64;
-        if opcode == 0x4C {
-            self.pc = address;
+        match opcode {
+            0x18 => { self.flags.remove(Flags::CARRY); },
+            0x20 => { let pc = self.pc; self.push_16(&mut bus, pc - 1); self.pc = address; },
+            0x38 => { self.flags |= Flags::CARRY; },
+            0x4C => { self.pc = address; },
+            0x86 => { bus.write(address, self.x); },
+            0xA2 => { self.x = bus.read(address); let x = self.x; self.set_zn_flag(x); },
+            0xB0 => { if self.flags.intersects(Flags::CARRY) { self.pc = address; self.add_branch_cycles(); } },
+            _ => {}
         }
     }
 
@@ -462,15 +542,9 @@ fn main() {
     // This allows it to be compared to the nestest.log.
     // See http://www.qmtpro.com/~nes/misc/nestest.txt for more info.
     console.cpu.pc = 0xC000;
-    console.step();
-    console.step();
-    console.step();
-    console.step();
-    console.step();
-    console.step();
-    console.step();
-    console.step();
-    console.step();
+    for _ in 0..20 {
+        console.step();
+    }
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
