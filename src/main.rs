@@ -6,6 +6,9 @@ extern crate minifb;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
+use std::io::prelude::*;
+
+use std::io::BufReader;
 use std::mem;
 
 use minifb::{Key, WindowOptions, Window};
@@ -292,7 +295,9 @@ impl CPU {
         // FIXME: if pages are different, add another cycle.
     }
 
-    pub fn log(&mut self, bus: &Bus) {
+
+
+    pub fn log_string(&mut self, bus: &Bus) -> String {
         let opcode = bus.read(self.pc);
         let arg1 = bus.read(self.pc + 1);
         let arg2 = bus.read(self.pc + 2);
@@ -316,11 +321,16 @@ impl CPU {
             _ => "".to_owned(),
         };
 
-        println!("{:04X}  {}  {} {:27} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}", self.pc, opcode_string, name, address, self.a, self.x, self.y, self.flags, self.sp, self.cycles);
+        let cycles = (self.cycles * 3) % 341;
+
+        format!("{:04X}  {}  {} {:27} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}", self.pc, opcode_string, name, address, self.a, self.x, self.y, self.flags, self.sp, cycles)
+    }
+
+    pub fn log(&mut self, bus: &Bus) {
+        println!("{}", self.log_string(&bus));
     }
 
     pub fn step(&mut self, mut bus: &mut Bus) {
-        self.log(&bus);
         let opcode = bus.read(self.pc);
         let address = self.get_address(&bus, opcode);
 
@@ -435,6 +445,10 @@ impl Console {
         self.cpu.reset(&mut self.bus)
     }
 
+    pub fn log_string(&mut self) -> String {
+        self.cpu.log_string(&self.bus)
+    }
+
     pub fn step(&mut self) {
         self.cpu.step(&mut self.bus)
     }
@@ -542,7 +556,16 @@ fn main() {
     // This allows it to be compared to the nestest.log.
     // See http://www.qmtpro.com/~nes/misc/nestest.txt for more info.
     console.cpu.pc = 0xC000;
+
+
+    let f = File::open("testroms/nestest.log").unwrap();
+    let mut reader = BufReader::new(f);
+
     for _ in 0..20 {
+        let mut expected = String::new();
+        reader.read_line(&mut expected).unwrap();
+        let actual = console.log_string();
+        println!("  {}* {}", expected, actual);
         console.step();
     }
 
