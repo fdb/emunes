@@ -9,26 +9,23 @@ use std::io;
 use std::io::prelude::*;
 
 use std::io::BufReader;
-use std::mem;
 
 use minifb::{Key, WindowOptions, Window};
 
-#[derive(Debug)]
-enum AddressMode {
-    Absolute = 1,
-    AbsoluteX,
-    AbsoluteY,
-    Accumulator,
-    Immediate,
-    Implied,
-    IndexedIndirect,
-    Indirect,
-    IndirectIndexed,
-    Relative,
-    ZeroPage,
-    ZeroPageX,
-    ZeroPageY,
-}
+const ADDRESS_MODE_ABSOLUTE: u8 = 1;
+const ADDRESS_MODE_ABSOLUTE_X: u8 = 2;
+const ADDRESS_MODE_ABSOLUTE_Y: u8 = 3;
+const ADDRESS_MODE_ACCUMULATOR: u8 = 4;
+const ADDRESS_MODE_IMMEDIATE: u8 = 5;
+const ADDRESS_MODE_IMPLIED: u8 = 6;
+const ADDRESS_MODE_INDEXED_INDIRECT: u8 = 7;
+const ADDRESS_MODE_INDIRECT: u8 = 8;
+const ADDRESS_MODE_INDIRECT_INDEXED: u8 = 9;
+const ADDRESS_MODE_RELATIVE: u8 = 10;
+const ADDRESS_MODE_ZERO_PAGE: u8 = 11;
+const ADDRESS_MODE_ZERO_PAGE_X: u8 = 12;
+const ADDRESS_MODE_ZERO_PAGE_Y: u8 = 13;
+
 
 const WIDTH: usize = 640;
 const HEIGHT: usize = 360;
@@ -270,13 +267,12 @@ impl CPU {
     }
 
     pub fn get_address(&mut self, bus: &Bus, opcode: u8) -> u16 {
-        let address_mode_num = INSTRUCTION_MODES[opcode as usize];
-        let address_mode: AddressMode = unsafe { mem::transmute(address_mode_num) };
+        let address_mode = INSTRUCTION_MODES[opcode as usize];
         let address = match address_mode {
-            AddressMode::Absolute => bus.read_16(self.pc + 1),
-            AddressMode::Immediate => self.pc + 1,
-            AddressMode::Implied => 0,
-            AddressMode::Relative => {
+            ADDRESS_MODE_ABSOLUTE => bus.read_16(self.pc + 1),
+            ADDRESS_MODE_IMMEDIATE => self.pc + 1,
+            ADDRESS_MODE_IMPLIED => 0,
+            ADDRESS_MODE_RELATIVE => {
                 let offset = bus.read(self.pc + 1) as u16;
                 if offset < 0x80 {
                     self.pc + 2 + offset
@@ -284,8 +280,8 @@ impl CPU {
                     self.pc + 2 + offset - 0x100
                 }
             },
-            AddressMode::ZeroPage => bus.read(self.pc + 1) as u16,
-            _ => panic!("Invalid address mode {}", address_mode_num),
+            ADDRESS_MODE_ZERO_PAGE => bus.read(self.pc + 1) as u16,
+            _ => panic!("Invalid address mode {}", address_mode),
         };
         address
     }
@@ -309,15 +305,14 @@ impl CPU {
             3 => format!("{:02X} {:02X} {:02X}", opcode, arg1, arg2),
             _ => panic!("Invalid instruction size {:02X} size {}", opcode, opcode_size)
         };
-        let address_mode_num = INSTRUCTION_MODES[opcode as usize];
-        let address_mode: AddressMode = unsafe { mem::transmute(address_mode_num) };
+        let address_mode = INSTRUCTION_MODES[opcode as usize];
         let address = self.get_address(&bus, opcode);
         let address = match address_mode {
-            AddressMode::Absolute => format!("${:04X}", address),
-            AddressMode::Relative => format!("${:04X}", address),
-            AddressMode::Immediate => format!("#${:02X}", arg1),
-            AddressMode::Implied => "".to_owned(),
-            AddressMode::ZeroPage => format!("${:02X} = {:02X}", arg1, 0),
+            ADDRESS_MODE_ABSOLUTE => format!("${:04X}", address),
+            ADDRESS_MODE_RELATIVE => format!("${:04X}", address),
+            ADDRESS_MODE_IMMEDIATE => format!("#${:02X}", arg1),
+            ADDRESS_MODE_IMPLIED => "".to_owned(),
+            ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, 0),
             _ => "".to_owned(),
         };
 
