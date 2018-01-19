@@ -286,12 +286,11 @@ impl CPU {
         address
     }
 
-    pub fn add_branch_cycles(&mut self) {
+    pub fn branch_to(&mut self, address: u16) {
+        self.pc = address;
         self.cycles += 1;
         // FIXME: if pages are different, add another cycle.
     }
-
-
 
     pub fn log_string(&mut self, bus: &Bus) -> String {
         let opcode = bus.read(self.pc);
@@ -312,7 +311,7 @@ impl CPU {
             ADDRESS_MODE_RELATIVE => format!("${:04X}", address),
             ADDRESS_MODE_IMMEDIATE => format!("#${:02X}", arg1),
             ADDRESS_MODE_IMPLIED => "".to_owned(),
-            ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, 0),
+            ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, bus.read(arg1 as u16)),
             _ => "".to_owned(),
         };
 
@@ -333,14 +332,43 @@ impl CPU {
         //
         self.pc += INSTRUCTION_SIZES[opcode as usize] as u16;
         self.cycles += INSTRUCTION_CYCLES[opcode as usize] as u64;
+        // Reference: https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
         match opcode {
-            0x18 => { self.flags.remove(Flags::CARRY); },
+            // Control Instructions
             0x20 => { let pc = self.pc; self.push_16(&mut bus, pc - 1); self.pc = address; },
-            0x38 => { self.flags |= Flags::CARRY; },
+            0x60 => { self.pc = self.pull_16(&bus) + 1; },
+
+            0x24 | 0x2C => { // BIT - Bit Test
+                let v = bus.read(address);
+                let a = self.a;
+                self.flags.set(Flags::OVERFLOW, ((v >> 6) & 1) > 0);
+                self.set_z_flag(v & a);
+                self.set_n_flag(v);
+            },
             0x4C => { self.pc = address; },
+
+            0x10 => { if !self.flags.intersects(Flags::NEGATIVE) { self.branch_to(address); } },
+            0x30 => { if self.flags.intersects(Flags::NEGATIVE) { self.branch_to(address); } },
+            0x50 => { if !self.flags.intersects(Flags::OVERFLOW) { self.branch_to(address); } },
+            0x70 => { if self.flags.intersects(Flags::OVERFLOW) { self.branch_to(address); } },
+            0x90 => { if !self.flags.intersects(Flags::CARRY) { self.branch_to(address); } },
+            0xB0 => { if self.flags.intersects(Flags::CARRY) { self.branch_to(address); } },
+            0xD0 => { if !self.flags.intersects(Flags::ZERO) { self.branch_to(address); } },
+            0xF0 => { if self.flags.intersects(Flags::ZERO) { self.branch_to(address); } },
+
+            0x18 => { self.flags.remove(Flags::CARRY); },
+            0x38 => { self.flags |= Flags::CARRY; },
+            0x58 => { self.flags.remove(Flags::INTERRUPT_DISABLE); },
+            0x78 => { self.flags |= Flags::INTERRUPT_DISABLE; },
+
+            // ALU Operations
+            0x85 => { bus.write(address, self.a); },
             0x86 => { bus.write(address, self.x); },
+
+            // Read-Modify-Write Operations
             0xA2 => { self.x = bus.read(address); let x = self.x; self.set_zn_flag(x); },
-            0xB0 => { if self.flags.intersects(Flags::CARRY) { self.pc = address; self.add_branch_cycles(); } },
+            0xA9 => { self.a = bus.read(address); let a = self.a; self.set_zn_flag(a); },
+
             _ => {}
         }
     }
@@ -557,7 +585,7 @@ fn main() {
     let mut reader = BufReader::new(f);
     let mut history: Vec<String> = Vec::new();
 
-    for i in 0..50 {
+    for i in 0..500 {
         let mut expected = String::new();
         reader.read_line(&mut expected).unwrap();
         let expected = expected.trim_right().to_owned();
