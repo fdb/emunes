@@ -560,13 +560,26 @@ fn main() {
 
     let f = File::open("testroms/nestest.log").unwrap();
     let mut reader = BufReader::new(f);
+    let mut history: Vec<String> = Vec::new();
 
-    for _ in 0..20 {
+    for i in 0..50 {
         let mut expected = String::new();
         reader.read_line(&mut expected).unwrap();
+        let expected = expected.trim_right().to_owned();
         let actual = console.log_string();
-        println!("  {}* {}", expected, actual);
+        //println!("{}", expected);
+        if actual != expected {
+            let min = (i as i32) - 10;
+            let min = if min < 0 { 0 } else { min };
+            for j in min..i {
+                println!("  {}", history[j as usize]);
+            }
+            println!();
+            println!("  {}\n* {}", expected, actual);
+            break;
+        }
         console.step();
+        history.push(expected.clone());
     }
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
