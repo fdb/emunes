@@ -6,8 +6,26 @@ extern crate minifb;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
+use std::mem;
 
 use minifb::{Key, WindowOptions, Window};
+
+#[derive(Debug)]
+enum AddressMode {
+    Absolute = 1,
+    AbsoluteX,
+    AbsoluteY,
+    Accumulator,
+    Immediate,
+    Implied,
+    IndexedIndirect,
+    Indirect,
+    IndirectIndexed,
+    Relative,
+    ZeroPage,
+    ZeroPageX,
+    ZeroPageY,
+}
 
 const WIDTH: usize = 640;
 const HEIGHT: usize = 360;
@@ -225,14 +243,15 @@ impl CPU {
     pub fn step(&mut self, bus: &mut Bus) {
         self.log(&bus);
         let opcode = bus.read(self.pc);
-        let address_mode = INSTRUCTION_MODES[opcode as usize];
+        let address_mode_num = INSTRUCTION_MODES[opcode as usize];
+        let address_mode: AddressMode = unsafe { mem::transmute(address_mode_num) };
         let address = match address_mode {
-            1 => bus.read_16(self.pc + 1),
-            5 => self.pc + 1,
-            _ => panic!("Invalid address mode {}", address_mode),
+            AddressMode::Absolute => bus.read_16(self.pc + 1),
+            AddressMode::Immediate => self.pc + 1,
+            _ => panic!("Invalid address mode {}", address_mode_num),
         };
 
-        println!("Address: {:04X} mode {}", address, address_mode);
+        println!("Address: {:04X} mode {:?}", address, address_mode);
         //
         self.pc += INSTRUCTION_SIZES[opcode as usize] as u16;
         self.cycles += INSTRUCTION_CYCLES[opcode as usize] as u64;
