@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
 use std::io::prelude::*;
+use std::num::Wrapping;
 
 use std::io::BufReader;
 
@@ -292,6 +293,12 @@ impl CPU {
         // FIXME: if pages are different, add another cycle.
     }
 
+    pub fn compare(&mut self, a: u8, b: u8) {
+        // FIXME: Not sure if we need ot wrapping_sub here, or upgrade the types.
+        self.set_zn_flag(a.wrapping_sub(b));
+        self.flags.set(Flags::CARRY, a >= b);
+    }
+
     pub fn log_string(&mut self, bus: &Bus) -> String {
         let opcode = bus.read(self.pc);
         let arg1 = bus.read(self.pc + 1);
@@ -338,6 +345,11 @@ impl CPU {
             0x20 => { let pc = self.pc; self.push_16(&mut bus, pc - 1); self.pc = address; },
             0x60 => { self.pc = self.pull_16(&bus) + 1; },
 
+            0x08 => { let flags = self.flags.bits(); self.push(&mut bus, flags | 0x10); },
+            0x28 => { let flags = self.pull(&bus) & 0xEF | 0x20; self.flags = Flags::from_bits(flags).unwrap(); }
+            0x48 => { let a = self.a; self.push(&mut bus, a); },
+            0x68 => { self.a = self.pull(&bus); let a = self.a; self.set_zn_flag(a); },
+
             0x24 | 0x2C => { // BIT - Bit Test
                 let v = bus.read(address);
                 let a = self.a;
@@ -360,16 +372,34 @@ impl CPU {
             0x38 => { self.flags |= Flags::CARRY; },
             0x58 => { self.flags.remove(Flags::INTERRUPT_DISABLE); },
             0x78 => { self.flags |= Flags::INTERRUPT_DISABLE; },
+            0xB8 => { self.flags.remove(Flags::OVERFLOW); },
+            0xD8 => { self.flags.remove(Flags::DECIMAL_MODE); },
+            0xF8 => { self.flags |= Flags::DECIMAL_MODE; },
 
             // ALU Operations
+            0x01 | 0x05 | 0x09 | 0x0D | 0x11 | 0x15 | 0x19 | 0x1D => { self.a = self.a | bus.read(address); let a = self.a; self.set_zn_flag(a); },
+            0x21 | 0x25 | 0x29 | 0x2D | 0x31 | 0x35 | 0x39 | 0x3D => { self.a = self.a & bus.read(address); let a = self.a; self.set_zn_flag(a); },
+            0xC1 | 0xC5 | 0xC9 | 0xCD | 0xD1 | 0xD5 | 0xD9 | 0xDD => { let v = bus.read(address); let a = self.a; self.compare(a, v); },
+            0x41 | 0x45 | 0x49 | 0x4D | 0x51 | 0x55 | 0x59 | 0x5D => { self.a = self.a ^ bus.read(address); let a = self.a; self.set_zn_flag(a); },
+            0x61 | 0x65 | 0x69 | 0x6D | 0x71 | 0x75 | 0x79 | 0x7D => {
+                let a = self.a;
+                let b: u8 = bus.read(address);
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                self.a = a.wrapping_add(b).wrapping_add(c);
+                let _a = self.a;
+                self.set_zn_flag(_a);
+                self.flags.set(Flags::CARRY, a as u32 + b as u32 + c as u32 > 0xFF);
+                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
+            },
             0x85 => { bus.write(address, self.a); },
             0x86 => { bus.write(address, self.x); },
 
             // Read-Modify-Write Operations
             0xA2 => { self.x = bus.read(address); let x = self.x; self.set_zn_flag(x); },
             0xA9 => { self.a = bus.read(address); let a = self.a; self.set_zn_flag(a); },
+            0xEA => { },
 
-            _ => {}
+            _ => { println!("Instruction {} ({:02X}) not implemented yet.", INSTRUCTION_NAMES[opcode as usize], opcode); }
         }
     }
 
