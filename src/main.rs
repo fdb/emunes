@@ -11,7 +11,7 @@ use std::num::Wrapping;
 
 use std::io::BufReader;
 
-use minifb::{Key, WindowOptions, Window};
+use minifb::{Key, Window, WindowOptions};
 
 const ADDRESS_MODE_ABSOLUTE: u8 = 1;
 const ADDRESS_MODE_ABSOLUTE_X: u8 = 2;
@@ -27,102 +27,65 @@ const ADDRESS_MODE_ZERO_PAGE: u8 = 11;
 const ADDRESS_MODE_ZERO_PAGE_X: u8 = 12;
 const ADDRESS_MODE_ZERO_PAGE_Y: u8 = 13;
 
-
 const WIDTH: usize = 640;
 const HEIGHT: usize = 360;
 
 const INSTRUCTION_MODES: [u8; 256] = [
-    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
-    1, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
-    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
-    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 8, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
-    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3,
-    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3,
-    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
-    5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
-    10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+    6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2,
+    2, 2, 2, 1, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3,
+    6, 3, 2, 2, 2, 2, 6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12,
+    12, 6, 3, 6, 3, 2, 2, 2, 2, 6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 8, 1, 1, 1, 10, 9, 6, 9,
+    12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2, 5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1, 10,
+    9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3, 5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1,
+    1, 1, 10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3, 5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6,
+    5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2, 5, 7, 5, 7, 11, 11, 11, 11,
+    6, 5, 6, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
 ];
 
 const INSTRUCTION_SIZES: [u8; 256] = [
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
-    2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0
+    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
+    2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
 ];
 
 const INSTRUCTION_CYCLES: [u8; 256] = [
-    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
-    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
-    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
-    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-    2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
-    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-    2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
-    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
 ];
 
 const INSTRUCTION_NAMES: &'static [&'static str] = &[
-    "BRK", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO",
-    "PHP", "ORA", "ASL", "ANC", "NOP", "ORA", "ASL", "SLO",
-    "BPL", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO",
-    "CLC", "ORA", "NOP", "SLO", "NOP", "ORA", "ASL", "SLO",
-    "JSR", "AND", "KIL", "RLA", "BIT", "AND", "ROL", "RLA",
-    "PLP", "AND", "ROL", "ANC", "BIT", "AND", "ROL", "RLA",
-    "BMI", "AND", "KIL", "RLA", "NOP", "AND", "ROL", "RLA",
-    "SEC", "AND", "NOP", "RLA", "NOP", "AND", "ROL", "RLA",
-    "RTI", "EOR", "KIL", "SRE", "NOP", "EOR", "LSR", "SRE",
-    "PHA", "EOR", "LSR", "ALR", "JMP", "EOR", "LSR", "SRE",
-    "BVC", "EOR", "KIL", "SRE", "NOP", "EOR", "LSR", "SRE",
-    "CLI", "EOR", "NOP", "SRE", "NOP", "EOR", "LSR", "SRE",
-    "RTS", "ADC", "KIL", "RRA", "NOP", "ADC", "ROR", "RRA",
-    "PLA", "ADC", "ROR", "ARR", "JMP", "ADC", "ROR", "RRA",
-    "BVS", "ADC", "KIL", "RRA", "NOP", "ADC", "ROR", "RRA",
-    "SEI", "ADC", "NOP", "RRA", "NOP", "ADC", "ROR", "RRA",
-    "NOP", "STA", "NOP", "SAX", "STY", "STA", "STX", "SAX",
-    "DEY", "NOP", "TXA", "XAA", "STY", "STA", "STX", "SAX",
-    "BCC", "STA", "KIL", "AHX", "STY", "STA", "STX", "SAX",
-    "TYA", "STA", "TXS", "TAS", "SHY", "STA", "SHX", "AHX",
-    "LDY", "LDA", "LDX", "LAX", "LDY", "LDA", "LDX", "LAX",
-    "TAY", "LDA", "TAX", "LAX", "LDY", "LDA", "LDX", "LAX",
-    "BCS", "LDA", "KIL", "LAX", "LDY", "LDA", "LDX", "LAX",
-    "CLV", "LDA", "TSX", "LAS", "LDY", "LDA", "LDX", "LAX",
-    "CPY", "CMP", "NOP", "DCP", "CPY", "CMP", "DEC", "DCP",
-    "INY", "CMP", "DEX", "AXS", "CPY", "CMP", "DEC", "DCP",
-    "BNE", "CMP", "KIL", "DCP", "NOP", "CMP", "DEC", "DCP",
-    "CLD", "CMP", "NOP", "DCP", "NOP", "CMP", "DEC", "DCP",
-    "CPX", "SBC", "NOP", "ISC", "CPX", "SBC", "INC", "ISC",
-    "INX", "SBC", "NOP", "SBC", "CPX", "SBC", "INC", "ISC",
-    "BEQ", "SBC", "KIL", "ISC", "NOP", "SBC", "INC", "ISC",
-    "SED", "SBC", "NOP", "ISC", "NOP", "SBC", "INC", "ISC",
-    ];
-
+    "BRK", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO", "PHP", "ORA", "ASL", "ANC", "NOP",
+    "ORA", "ASL", "SLO", "BPL", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO", "CLC", "ORA",
+    "NOP", "SLO", "NOP", "ORA", "ASL", "SLO", "JSR", "AND", "KIL", "RLA", "BIT", "AND", "ROL",
+    "RLA", "PLP", "AND", "ROL", "ANC", "BIT", "AND", "ROL", "RLA", "BMI", "AND", "KIL", "RLA",
+    "NOP", "AND", "ROL", "RLA", "SEC", "AND", "NOP", "RLA", "NOP", "AND", "ROL", "RLA", "RTI",
+    "EOR", "KIL", "SRE", "NOP", "EOR", "LSR", "SRE", "PHA", "EOR", "LSR", "ALR", "JMP", "EOR",
+    "LSR", "SRE", "BVC", "EOR", "KIL", "SRE", "NOP", "EOR", "LSR", "SRE", "CLI", "EOR", "NOP",
+    "SRE", "NOP", "EOR", "LSR", "SRE", "RTS", "ADC", "KIL", "RRA", "NOP", "ADC", "ROR", "RRA",
+    "PLA", "ADC", "ROR", "ARR", "JMP", "ADC", "ROR", "RRA", "BVS", "ADC", "KIL", "RRA", "NOP",
+    "ADC", "ROR", "RRA", "SEI", "ADC", "NOP", "RRA", "NOP", "ADC", "ROR", "RRA", "NOP", "STA",
+    "NOP", "SAX", "STY", "STA", "STX", "SAX", "DEY", "NOP", "TXA", "XAA", "STY", "STA", "STX",
+    "SAX", "BCC", "STA", "KIL", "AHX", "STY", "STA", "STX", "SAX", "TYA", "STA", "TXS", "TAS",
+    "SHY", "STA", "SHX", "AHX", "LDY", "LDA", "LDX", "LAX", "LDY", "LDA", "LDX", "LAX", "TAY",
+    "LDA", "TAX", "LAX", "LDY", "LDA", "LDX", "LAX", "BCS", "LDA", "KIL", "LAX", "LDY", "LDA",
+    "LDX", "LAX", "CLV", "LDA", "TSX", "LAS", "LDY", "LDA", "LDX", "LAX", "CPY", "CMP", "NOP",
+    "DCP", "CPY", "CMP", "DEC", "DCP", "INY", "CMP", "DEX", "AXS", "CPY", "CMP", "DEC", "DCP",
+    "BNE", "CMP", "KIL", "DCP", "NOP", "CMP", "DEC", "DCP", "CLD", "CMP", "NOP", "DCP", "NOP",
+    "CMP", "DEC", "DCP", "CPX", "SBC", "NOP", "ISC", "CPX", "SBC", "INC", "ISC", "INX", "SBC",
+    "NOP", "SBC", "CPX", "SBC", "INC", "ISC", "BEQ", "SBC", "KIL", "ISC", "NOP", "SBC", "INC",
+    "ISC", "SED", "SBC", "NOP", "ISC", "NOP", "SBC", "INC", "ISC",
+];
 
 pub trait BitReader {
     fn read_u8(&mut self) -> Result<u8, io::Error>;
@@ -144,8 +107,8 @@ impl BitReader for File {
         try!(self.read(&mut buffer));
 
         Ok(
-            buffer[3] as u32 + ((buffer[2] as u32) << 8) + ((buffer[1] as u32) << 16) +
-                ((buffer[0] as u32) << 24),
+            buffer[3] as u32 + ((buffer[2] as u32) << 8) + ((buffer[1] as u32) << 16)
+                + ((buffer[0] as u32) << 24),
         )
     }
 
@@ -155,8 +118,8 @@ impl BitReader for File {
         try!(self.read(&mut buffer));
 
         Ok(
-            buffer[0] as u32 + ((buffer[1] as u32) << 8) + ((buffer[2] as u32) << 16) +
-                ((buffer[3] as u32) << 24),
+            buffer[0] as u32 + ((buffer[1] as u32) << 8) + ((buffer[2] as u32) << 16)
+                + ((buffer[3] as u32) << 24),
         )
     }
 }
@@ -176,7 +139,7 @@ pub struct Cartridge {
     pub sram: Vec<u8>,
     pub mapper_type: u8,
     pub mirror_mode: u8,
-    pub battery_present: bool
+    pub battery_present: bool,
 }
 
 bitflags! {
@@ -206,7 +169,6 @@ pub struct CPU {
 // http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
 // http://www.oxyron.de/html/opcodes02.html
 impl CPU {
-
     pub fn new() -> CPU {
         CPU {
             cycles: 0,
@@ -215,7 +177,7 @@ impl CPU {
             a: 0,
             x: 0,
             y: 0,
-            flags: Default::default()
+            flags: Default::default(),
         }
     }
 
@@ -280,7 +242,7 @@ impl CPU {
                 } else {
                     self.pc + 2 + offset - 0x100
                 }
-            },
+            }
             ADDRESS_MODE_ZERO_PAGE => bus.read(self.pc + 1) as u16,
             _ => panic!("Invalid address mode {}", address_mode),
         };
@@ -309,7 +271,10 @@ impl CPU {
             1 => format!("{:02X}      ", opcode),
             2 => format!("{:02X} {:02X}   ", opcode, arg1),
             3 => format!("{:02X} {:02X} {:02X}", opcode, arg1, arg2),
-            _ => panic!("Invalid instruction size {:02X} size {}", opcode, opcode_size)
+            _ => panic!(
+                "Invalid instruction size {:02X} size {}",
+                opcode, opcode_size
+            ),
         };
         let address_mode = INSTRUCTION_MODES[opcode as usize];
         let address = self.get_address(&bus, opcode);
@@ -324,7 +289,19 @@ impl CPU {
 
         let cycles = (self.cycles * 3) % 341;
 
-        format!("{:04X}  {}  {} {:27} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}", self.pc, opcode_string, name, address, self.a, self.x, self.y, self.flags, self.sp, cycles)
+        format!(
+            "{:04X}  {}  {} {:27} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:3}",
+            self.pc,
+            opcode_string,
+            name,
+            address,
+            self.a,
+            self.x,
+            self.y,
+            self.flags,
+            self.sp,
+            cycles
+        )
     }
 
     pub fn log(&mut self, bus: &Bus) {
@@ -342,67 +319,173 @@ impl CPU {
         // Reference: https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
         match opcode {
             // Control Instructions
-            0x20 => { let pc = self.pc; self.push_16(&mut bus, pc - 1); self.pc = address; },
-            0x60 => { self.pc = self.pull_16(&bus) + 1; },
+            0x20 => {
+                let pc = self.pc;
+                self.push_16(&mut bus, pc - 1);
+                self.pc = address;
+            }
+            0x60 => {
+                self.pc = self.pull_16(&bus) + 1;
+            }
 
-            0x08 => { let flags = self.flags.bits(); self.push(&mut bus, flags | 0x10); },
-            0x28 => { let flags = self.pull(&bus) & 0xEF | 0x20; self.flags = Flags::from_bits(flags).unwrap(); }
-            0x48 => { let a = self.a; self.push(&mut bus, a); },
-            0x68 => { self.a = self.pull(&bus); let a = self.a; self.set_zn_flag(a); },
+            0x08 => {
+                let flags = self.flags.bits();
+                self.push(&mut bus, flags | 0x10);
+            }
+            0x28 => {
+                let flags = self.pull(&bus) & 0xEF | 0x20;
+                self.flags = Flags::from_bits(flags).unwrap();
+            }
+            0x48 => {
+                let a = self.a;
+                self.push(&mut bus, a);
+            }
+            0x68 => {
+                self.a = self.pull(&bus);
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
 
-            0x24 | 0x2C => { // BIT - Bit Test
+            0x24 | 0x2C => {
+                // BIT - Bit Test
                 let v = bus.read(address);
                 let a = self.a;
                 self.flags.set(Flags::OVERFLOW, ((v >> 6) & 1) > 0);
                 self.set_z_flag(v & a);
                 self.set_n_flag(v);
-            },
-            0x4C => { self.pc = address; },
+            }
+            0x4C => {
+                self.pc = address;
+            }
 
-            0x10 => { if !self.flags.intersects(Flags::NEGATIVE) { self.branch_to(address); } },
-            0x30 => { if self.flags.intersects(Flags::NEGATIVE) { self.branch_to(address); } },
-            0x50 => { if !self.flags.intersects(Flags::OVERFLOW) { self.branch_to(address); } },
-            0x70 => { if self.flags.intersects(Flags::OVERFLOW) { self.branch_to(address); } },
-            0x90 => { if !self.flags.intersects(Flags::CARRY) { self.branch_to(address); } },
-            0xB0 => { if self.flags.intersects(Flags::CARRY) { self.branch_to(address); } },
-            0xD0 => { if !self.flags.intersects(Flags::ZERO) { self.branch_to(address); } },
-            0xF0 => { if self.flags.intersects(Flags::ZERO) { self.branch_to(address); } },
+            0x10 => {
+                if !self.flags.intersects(Flags::NEGATIVE) {
+                    self.branch_to(address);
+                }
+            }
+            0x30 => {
+                if self.flags.intersects(Flags::NEGATIVE) {
+                    self.branch_to(address);
+                }
+            }
+            0x50 => {
+                if !self.flags.intersects(Flags::OVERFLOW) {
+                    self.branch_to(address);
+                }
+            }
+            0x70 => {
+                if self.flags.intersects(Flags::OVERFLOW) {
+                    self.branch_to(address);
+                }
+            }
+            0x90 => {
+                if !self.flags.intersects(Flags::CARRY) {
+                    self.branch_to(address);
+                }
+            }
+            0xB0 => {
+                if self.flags.intersects(Flags::CARRY) {
+                    self.branch_to(address);
+                }
+            }
+            0xD0 => {
+                if !self.flags.intersects(Flags::ZERO) {
+                    self.branch_to(address);
+                }
+            }
+            0xF0 => {
+                if self.flags.intersects(Flags::ZERO) {
+                    self.branch_to(address);
+                }
+            }
 
-            0x18 => { self.flags.remove(Flags::CARRY); },
-            0x38 => { self.flags |= Flags::CARRY; },
-            0x58 => { self.flags.remove(Flags::INTERRUPT_DISABLE); },
-            0x78 => { self.flags |= Flags::INTERRUPT_DISABLE; },
-            0xB8 => { self.flags.remove(Flags::OVERFLOW); },
-            0xD8 => { self.flags.remove(Flags::DECIMAL_MODE); },
-            0xF8 => { self.flags |= Flags::DECIMAL_MODE; },
+            0x18 => {
+                self.flags.remove(Flags::CARRY);
+            }
+            0x38 => {
+                self.flags |= Flags::CARRY;
+            }
+            0x58 => {
+                self.flags.remove(Flags::INTERRUPT_DISABLE);
+            }
+            0x78 => {
+                self.flags |= Flags::INTERRUPT_DISABLE;
+            }
+            0xB8 => {
+                self.flags.remove(Flags::OVERFLOW);
+            }
+            0xD8 => {
+                self.flags.remove(Flags::DECIMAL_MODE);
+            }
+            0xF8 => {
+                self.flags |= Flags::DECIMAL_MODE;
+            }
 
             // ALU Operations
-            0x01 | 0x05 | 0x09 | 0x0D | 0x11 | 0x15 | 0x19 | 0x1D => { self.a = self.a | bus.read(address); let a = self.a; self.set_zn_flag(a); },
-            0x21 | 0x25 | 0x29 | 0x2D | 0x31 | 0x35 | 0x39 | 0x3D => { self.a = self.a & bus.read(address); let a = self.a; self.set_zn_flag(a); },
-            0xC1 | 0xC5 | 0xC9 | 0xCD | 0xD1 | 0xD5 | 0xD9 | 0xDD => { let v = bus.read(address); let a = self.a; self.compare(a, v); },
-            0x41 | 0x45 | 0x49 | 0x4D | 0x51 | 0x55 | 0x59 | 0x5D => { self.a = self.a ^ bus.read(address); let a = self.a; self.set_zn_flag(a); },
+            0x01 | 0x05 | 0x09 | 0x0D | 0x11 | 0x15 | 0x19 | 0x1D => {
+                self.a = self.a | bus.read(address);
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
+            0x21 | 0x25 | 0x29 | 0x2D | 0x31 | 0x35 | 0x39 | 0x3D => {
+                self.a = self.a & bus.read(address);
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
+            0xC1 | 0xC5 | 0xC9 | 0xCD | 0xD1 | 0xD5 | 0xD9 | 0xDD => {
+                let v = bus.read(address);
+                let a = self.a;
+                self.compare(a, v);
+            }
+            0x41 | 0x45 | 0x49 | 0x4D | 0x51 | 0x55 | 0x59 | 0x5D => {
+                self.a = self.a ^ bus.read(address);
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
             0x61 | 0x65 | 0x69 | 0x6D | 0x71 | 0x75 | 0x79 | 0x7D => {
                 let a = self.a;
                 let b: u8 = bus.read(address);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 self.a = a.wrapping_add(b).wrapping_add(c);
                 let _a = self.a;
                 self.set_zn_flag(_a);
-                self.flags.set(Flags::CARRY, a as u32 + b as u32 + c as u32 > 0xFF);
-                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
-            },
-            0x85 => { bus.write(address, self.a); },
-            0x86 => { bus.write(address, self.x); },
+                self.flags
+                    .set(Flags::CARRY, a as u32 + b as u32 + c as u32 > 0xFF);
+                self.flags
+                    .set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
+            }
+            0x85 => {
+                bus.write(address, self.a);
+            }
+            0x86 => {
+                bus.write(address, self.x);
+            }
 
             // Read-Modify-Write Operations
-            0xA2 => { self.x = bus.read(address); let x = self.x; self.set_zn_flag(x); },
-            0xA9 => { self.a = bus.read(address); let a = self.a; self.set_zn_flag(a); },
-            0xEA => { },
+            0xA2 => {
+                self.x = bus.read(address);
+                let x = self.x;
+                self.set_zn_flag(x);
+            }
+            0xA9 => {
+                self.a = bus.read(address);
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
+            0xEA => {}
 
-            _ => { println!("Instruction {} ({:02X}) not implemented yet.", INSTRUCTION_NAMES[opcode as usize], opcode); }
+            _ => {
+                println!(
+                    "Instruction {} ({:02X}) not implemented yet.",
+                    INSTRUCTION_NAMES[opcode as usize], opcode
+                );
+            }
         }
     }
-
 }
 
 pub trait Mapper {
@@ -412,12 +495,12 @@ pub trait Mapper {
 }
 
 pub struct Mapper2<'a> {
-    cartridge: &'a mut Cartridge
+    cartridge: &'a mut Cartridge,
 }
 
 impl<'a> Mapper2<'a> {
     pub fn new(cartridge: &mut Cartridge) -> Mapper2 {
-        Mapper2 {cartridge}
+        Mapper2 { cartridge }
     }
 }
 
@@ -426,7 +509,7 @@ impl<'a> Mapper for Mapper2<'a> {
         match address {
             0x0000...0x2000 => self.cartridge.chr[address as usize],
             0x2001...0xC000 => self.cartridge.prg[address as usize],
-            _ => panic!("Invalid mapper read {:?}", address)
+            _ => panic!("Invalid mapper read {:?}", address),
         }
     }
 
@@ -434,17 +517,17 @@ impl<'a> Mapper for Mapper2<'a> {
         match address {
             0x0000...0x2000 => self.cartridge.chr[address as usize] = value,
             0x2001...0xC000 => self.cartridge.prg[address as usize] = value,
-            _ => panic!("Invalid mapper write {:?}", address)
+            _ => panic!("Invalid mapper write {:?}", address),
         }
     }
 
-    fn step(&self) { }
+    fn step(&self) {}
 }
 
 pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
     match mapper_type {
         0 => Mapper2::new(cartridge),
-        _ => panic!("Invalid mapper_type {:?}", mapper_type)
+        _ => panic!("Invalid mapper_type {:?}", mapper_type),
     }
 }
 
@@ -458,13 +541,13 @@ impl Bus {
         match address {
             0x0000...0x1FFF => self.ram[(address % 0x2000) as usize],
             0x2000...0x4000 => 0xCC, // TODO: self.ppu.read_register(0x2000 + address % 8)
-            0x4014 => 0xCC, // TODO: self.ppu.read_register(address)
-            0x4015 => 0xCC, // TODO: self.apu.read_register(address)
-            0x4016 => 0xCC, // TODO: self.controller1.read()
-            0x4017 => 0xCC, // TODO: self.controller2.read()
+            0x4014 => 0xCC,          // TODO: self.ppu.read_register(address)
+            0x4015 => 0xCC,          // TODO: self.apu.read_register(address)
+            0x4016 => 0xCC,          // TODO: self.controller1.read()
+            0x4017 => 0xCC,          // TODO: self.controller2.read()
             0x4018...0x5FFF => 0xCC, // TODO: I/O registers
             0x6000...0xFFFF => self.mapper_read(address),
-            _ => panic!("Invalid bus memory read at address {}", address)
+            _ => panic!("Invalid bus memory read at address {}", address),
         }
     }
 
@@ -482,7 +565,7 @@ impl Bus {
             0x6000...0x7FFF => 0xCC, // TODO: self.cartridge.sram[address - 0x6000]
             0x8000...0xBFFF => self.cartridge.prg[(address - 0x8000) as usize],
             0xC000...0xFFFF => self.cartridge.prg[(address - 0xC000) as usize],
-            _ => panic!("Invalid bus mapper read at address {}", address)
+            _ => panic!("Invalid bus mapper read at address {}", address),
         }
     }
 }
@@ -493,7 +576,6 @@ pub struct Console {
 }
 
 impl Console {
-
     pub fn reset(&mut self) {
         self.cpu.reset(&mut self.bus)
     }
@@ -505,7 +587,6 @@ impl Console {
     pub fn step(&mut self) {
         self.cpu.step(&mut self.bus)
     }
-
 }
 
 fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
@@ -554,7 +635,7 @@ fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
 
     // Read CHR ROM banks
     let mut chr: Vec<u8> = Vec::new();
-    chr.resize(chr_rom_size  * 8192, 0);
+    chr.resize(chr_rom_size * 8192, 0);
     try!(fp.read(&mut chr));
 
     println!("prg len {}", prg.len());
@@ -574,13 +655,13 @@ fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
     let mut sram: Vec<u8> = Vec::new();
     sram.resize(8192, 0);
 
-    Ok(Cartridge{
+    Ok(Cartridge {
         prg,
         chr,
         sram,
         mapper_type,
         mirror_mode,
-        battery_present: battery == 1
+        battery_present: battery == 1,
     })
 }
 
@@ -593,15 +674,9 @@ fn main() {
 
     let cpu = CPU::new();
 
-    let bus = Bus {
-        cartridge,
-        ram
-    };
+    let bus = Bus { cartridge, ram };
 
-    let mut console = Console{
-        cpu,
-        bus
-    };
+    let mut console = Console { cpu, bus };
 
     console.reset();
     // This is specifically for the nestest log.
@@ -609,7 +684,6 @@ fn main() {
     // This allows it to be compared to the nestest.log.
     // See http://www.qmtpro.com/~nes/misc/nestest.txt for more info.
     console.cpu.pc = 0xC000;
-
 
     let f = File::open("testroms/nestest.log").unwrap();
     let mut reader = BufReader::new(f);
@@ -638,14 +712,16 @@ fn main() {
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
-    let mut window = Window::new("Test - ESC to exit",
-                                 WIDTH,
-                                 HEIGHT,
-                                 WindowOptions::default()).unwrap_or_else(|e| {
+    let mut window = Window::new(
+        "Test - ESC to exit",
+        WIDTH,
+        HEIGHT,
+        WindowOptions::default(),
+    ).unwrap_or_else(|e| {
         panic!("{}", e);
     });
 
-   while window.is_open() && !window.is_key_down(Key::Escape) {
+    while window.is_open() && !window.is_key_down(Key::Escape) {
         let mut v = 0;
         let mut x = 0;
         let mut y = 0;
@@ -675,7 +751,6 @@ fn main() {
             v += 1;
         }
 
-
         // let mut x = 0;
         // for i in buffer.iter_mut() {
         //     let c = vram[x % 0x2000] as u32;
@@ -689,5 +764,4 @@ fn main() {
         // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
         window.update_with_buffer(&buffer).unwrap();
     }
-
 }
