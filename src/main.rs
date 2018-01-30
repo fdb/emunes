@@ -346,6 +346,7 @@ impl CPU {
                 self.set_zn_flag(a);
             }
 
+            // LDY - Load Y Register
             0xA0 | 0xA4 | 0xAC | 0xB4 | 0xBC => {
                 self.y = bus.read(address);
                 let y = self.y;
