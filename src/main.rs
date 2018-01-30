@@ -346,6 +346,12 @@ impl CPU {
                 self.set_zn_flag(a);
             }
 
+            0xA0 | 0xA4 | 0xAC | 0xB4 | 0xBC => {
+                self.y = bus.read(address);
+                let y = self.y;
+                self.set_zn_flag(y);
+            }
+
             0x24 | 0x2C => {
                 // BIT - Bit Test
                 let v = bus.read(address);
