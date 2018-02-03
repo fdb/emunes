@@ -254,7 +254,7 @@ impl CPU {
             ADDRESS_MODE_IMMEDIATE => self.pc + 1,
             ADDRESS_MODE_IMPLIED => 0,
             ADDRESS_MODE_INDEXED_INDIRECT => bus.read_16_bug((bus.read(self.pc + 1).wrapping_add(self.x)) as u16),
-            ADDRESS_MODE_INDIRECT => bus.read_16_bug(bus.read(self.pc + 1) as u16),
+            ADDRESS_MODE_INDIRECT => bus.read_16_bug(bus.read_16(self.pc + 1)),
             ADDRESS_MODE_INDIRECT_INDEXED => {
                 let address = bus.read_16_bug((bus.read(self.pc + 1) as u16)).wrapping_add(self.y as u16);
                 page_crossed = pages_differ(address.wrapping_sub(self.y as u16), address);
@@ -315,6 +315,7 @@ impl CPU {
             ADDRESS_MODE_RELATIVE => format!("${:04X}", address),
             ADDRESS_MODE_IMMEDIATE => format!("#${:02X}", arg1),
             ADDRESS_MODE_INDEXED_INDIRECT => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", arg1, (arg1.wrapping_add(self.x)), address, value),
+            ADDRESS_MODE_INDIRECT => format!("(${:02X}{:02X}) = {:04X}", arg2, arg1, address),
             ADDRESS_MODE_INDIRECT_INDEXED => format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", arg1, bus.read_16_bug(arg1 as u16), address, value),
 
             ADDRESS_MODE_IMPLIED => "".to_owned(),
@@ -323,7 +324,7 @@ impl CPU {
         };
 
         // Jump instructions don't show the value at the address.
-        if name.starts_with("J") {
+        if address_mode == ADDRESS_MODE_ABSOLUTE && name.starts_with("J") {
             address_string = format!("${:04X}", address);
         }
 
@@ -427,7 +428,7 @@ impl CPU {
             }
 
             // JMP - Jump
-            0x4C  | 0x6C => {
+            0x4C | 0x6C => {
                 self.pc = address;
             }
 
