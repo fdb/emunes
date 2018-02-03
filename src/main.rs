@@ -64,6 +64,18 @@ const INSTRUCTION_CYCLES: [u8; 256] = [
     2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
 ];
 
+const INSTRUCTION_PAGE_CYCLES: [u8; 256] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+];
+
+
 const INSTRUCTION_NAMES: &'static [&'static str] = &[
     "BRK", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO", "PHP", "ORA", "ASL", "ANC", "NOP",
     "ORA", "ASL", "SLO", "BPL", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO", "CLC", "ORA",
@@ -156,6 +168,10 @@ bitflags! {
     }
 }
 
+fn pages_differ(a: u16, b: u16) -> bool {
+    a & 0xFF00 != b & 0xFF00
+}
+
 pub struct CPU {
     pub cycles: u64,
     pub pc: u16,
@@ -167,7 +183,7 @@ pub struct CPU {
 }
 
 // http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
-// http://www.oxyron.de/html/opcodes02.html
+// http://6502.org/tutorials/6502opcodes.html
 impl CPU {
     pub fn new() -> CPU {
         CPU {
@@ -229,12 +245,21 @@ impl CPU {
         (hi as u16) << 8 | lo as u16
     }
 
-    pub fn get_address(&mut self, bus: &Bus, opcode: u8) -> u16 {
+    pub fn get_address(&mut self, bus: &Bus, opcode: u8, side_effects: bool) -> u16 {
         let address_mode = INSTRUCTION_MODES[opcode as usize];
+        let mut page_crossed = false;
         let address = match address_mode {
             ADDRESS_MODE_ABSOLUTE => bus.read_16(self.pc + 1),
+            ADDRESS_MODE_ACCUMULATOR => 0,
             ADDRESS_MODE_IMMEDIATE => self.pc + 1,
             ADDRESS_MODE_IMPLIED => 0,
+            ADDRESS_MODE_INDEXED_INDIRECT => bus.read_16_bug((bus.read(self.pc + 1).wrapping_add(self.x)) as u16),
+            ADDRESS_MODE_INDIRECT => bus.read_16_bug(bus.read(self.pc + 1) as u16),
+            ADDRESS_MODE_INDIRECT_INDEXED => {
+                let address = bus.read_16_bug((bus.read(self.pc + 1) as u16)).wrapping_add(self.y as u16);
+                page_crossed = pages_differ(address.wrapping_sub(self.y as u16), address);
+                address
+            }
             ADDRESS_MODE_RELATIVE => {
                 let offset = bus.read(self.pc + 1) as u16;
                 if offset < 0x80 {
@@ -246,17 +271,22 @@ impl CPU {
             ADDRESS_MODE_ZERO_PAGE => bus.read(self.pc + 1) as u16,
             _ => panic!("Invalid address mode {}", address_mode),
         };
+
+        if side_effects && page_crossed {
+            self.cycles += INSTRUCTION_PAGE_CYCLES[opcode as usize] as u64;
+        }
         address
     }
 
     pub fn branch_to(&mut self, address: u16) {
         self.pc = address;
         self.cycles += 1;
-        // FIXME: if pages are different, add another cycle.
+        if pages_differ(self.pc, address) {
+            self.cycles += 1;
+        }
     }
 
     pub fn compare(&mut self, a: u8, b: u8) {
-        // FIXME: Not sure if we need ot wrapping_sub here, or upgrade the types.
         self.set_zn_flag(a.wrapping_sub(b));
         self.flags.set(Flags::CARRY, a >= b);
     }
@@ -277,15 +307,25 @@ impl CPU {
             ),
         };
         let address_mode = INSTRUCTION_MODES[opcode as usize];
-        let address = self.get_address(&bus, opcode);
-        let address = match address_mode {
-            ADDRESS_MODE_ABSOLUTE => format!("${:04X}", address),
+        let address = self.get_address(&bus, opcode, false);
+        let value = bus.read(address);
+        let mut address_string = match address_mode {
+            ADDRESS_MODE_ABSOLUTE => format!("${:04X} = {:02X}", address, value),
+            ADDRESS_MODE_ACCUMULATOR => "A".to_owned(),
             ADDRESS_MODE_RELATIVE => format!("${:04X}", address),
             ADDRESS_MODE_IMMEDIATE => format!("#${:02X}", arg1),
+            ADDRESS_MODE_INDEXED_INDIRECT => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", arg1, (arg1.wrapping_add(self.x)), address, value),
+            ADDRESS_MODE_INDIRECT_INDEXED => format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", arg1, bus.read_16_bug(arg1 as u16), address, value),
+
             ADDRESS_MODE_IMPLIED => "".to_owned(),
-            ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, bus.read(arg1 as u16)),
-            _ => "".to_owned(),
+            ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, value),
+            _ => format!("??? opcode {:02X} mode {}", opcode, address_mode)
         };
+
+        // Jump instructions don't show the value at the address.
+        if name.starts_with("J") {
+            address_string = format!("${:04X}", address);
+        }
 
         let cycles = (self.cycles * 3) % 341;
 
@@ -294,7 +334,7 @@ impl CPU {
             self.pc,
             opcode_string,
             name,
-            address,
+            address_string,
             self.a,
             self.x,
             self.y,
@@ -310,7 +350,8 @@ impl CPU {
 
     pub fn step(&mut self, mut bus: &mut Bus) {
         let opcode = bus.read(self.pc);
-        let address = self.get_address(&bus, opcode);
+        let address_mode = INSTRUCTION_MODES[opcode as usize];
+        let address = self.get_address(&bus, opcode, true);
 
         //println!("Address: {:04X} mode {:?}", address, address_mode);
         //
@@ -318,30 +359,136 @@ impl CPU {
         self.cycles += INSTRUCTION_CYCLES[opcode as usize] as u64;
         // Reference: https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
         match opcode {
-            // Control Instructions
+            //// Control Instructions ////
+
+            // PHP - Push Processor Status
+            0x08 => {
+                let flags = self.flags.bits();
+                self.push(&mut bus, flags | 0x10);
+            }
+
+            // BPL - Branch If Positive
+            0x10 => {
+                if !self.flags.intersects(Flags::NEGATIVE) {
+                    self.branch_to(address);
+                }
+            }
+
+            // CLC - Clear Carry Flag
+            0x18 => {
+                self.flags.remove(Flags::CARRY);
+            }
+
+            // JSR - Jump to Subroutine
             0x20 => {
                 let pc = self.pc;
                 self.push_16(&mut bus, pc - 1);
                 self.pc = address;
             }
-            0x60 => {
-                self.pc = self.pull_16(&bus) + 1;
+
+            // BIT - Bit Test
+            0x24 | 0x2C => {
+                let v = bus.read(address);
+                let a = self.a;
+                self.flags.set(Flags::OVERFLOW, ((v >> 6) & 1) > 0);
+                self.set_z_flag(v & a);
+                self.set_n_flag(v);
             }
 
-            0x08 => {
-                let flags = self.flags.bits();
-                self.push(&mut bus, flags | 0x10);
-            }
+            // PLP - Pull Processor Status
             0x28 => {
                 let flags = self.pull(&bus) & 0xEF | 0x20;
                 self.flags = Flags::from_bits(flags).unwrap();
             }
+
+            // BMI - Branch on Minus
+            0x30 => {
+                if self.flags.intersects(Flags::NEGATIVE) {
+                    self.branch_to(address);
+                }
+            }
+
+            // SEC - Set Carry Flag
+            0x38 => {
+                self.flags |= Flags::CARRY;
+            }
+
+            // RTI - Return from Interrupt
+            0x40 => {
+                let flags = self.pull(&bus) & 0xEF | 0x20;
+                self.flags = Flags::from_bits(flags).unwrap();
+                self.pc = self.pull_16(&bus);
+            }
+
+            // PHA - Push Accumulator
             0x48 => {
                 let a = self.a;
                 self.push(&mut bus, a);
             }
+
+            // JMP - Jump
+            0x4C  | 0x6C => {
+                self.pc = address;
+            }
+
+            // BVC - Branch on Overflow Clear
+            0x50 => {
+                if !self.flags.intersects(Flags::OVERFLOW) {
+                    self.branch_to(address);
+                }
+            }
+
+            // CLI - Clear Interrupt
+            0x58 => {
+                self.flags.remove(Flags::INTERRUPT_DISABLE);
+            }
+
+            // RTS - Return from Subroutine
+            0x60 => {
+                self.pc = self.pull_16(&bus) + 1;
+            }
+
+            // PLA - Pull Accumulator
             0x68 => {
                 self.a = self.pull(&bus);
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
+
+            // BVS - Branch on Overflow Set
+            0x70 => {
+                if self.flags.intersects(Flags::OVERFLOW) {
+                    self.branch_to(address);
+                }
+            }
+
+            // SEI - Set Interrupt
+            0x78 => {
+                self.flags |= Flags::INTERRUPT_DISABLE;
+            }
+
+            // STY - Store Y Register
+            0x84 | 0x8C | 0x94 => {
+                bus.write(address, self.y)
+            }
+
+            // DEY - Decrement Y Register
+            0x88 => {
+                self.y = self.y.wrapping_sub(1);
+                let y = self.y;
+                self.set_zn_flag(y);
+            }
+
+            // BCC - Branch on Carry Clear
+            0x90 => {
+                if !self.flags.intersects(Flags::CARRY) {
+                    self.branch_to(address);
+                }
+            }
+
+            // TYA - Transfer Y to A
+            0x98 => {
+                self.a = self.y;
                 let a = self.a;
                 self.set_zn_flag(a);
             }
@@ -353,136 +500,273 @@ impl CPU {
                 self.set_zn_flag(y);
             }
 
-            0x24 | 0x2C => {
-                // BIT - Bit Test
-                let v = bus.read(address);
-                let a = self.a;
-                self.flags.set(Flags::OVERFLOW, ((v >> 6) & 1) > 0);
-                self.set_z_flag(v & a);
-                self.set_n_flag(v);
-            }
-            0x4C => {
-                self.pc = address;
+            // TAY - Transfer A to Y
+            0xA8 => {
+                self.y = self.a;
+                let y = self.y;
+                self.set_zn_flag(y);
             }
 
-            0x10 => {
-                if !self.flags.intersects(Flags::NEGATIVE) {
-                    self.branch_to(address);
-                }
-            }
-            0x30 => {
-                if self.flags.intersects(Flags::NEGATIVE) {
-                    self.branch_to(address);
-                }
-            }
-            0x50 => {
-                if !self.flags.intersects(Flags::OVERFLOW) {
-                    self.branch_to(address);
-                }
-            }
-            0x70 => {
-                if self.flags.intersects(Flags::OVERFLOW) {
-                    self.branch_to(address);
-                }
-            }
-            0x90 => {
-                if !self.flags.intersects(Flags::CARRY) {
-                    self.branch_to(address);
-                }
-            }
+            // BCS - Branch on Carry Set
             0xB0 => {
                 if self.flags.intersects(Flags::CARRY) {
                     self.branch_to(address);
                 }
             }
+
+            // CLV - Clear Overflow Flag
+            0xB8 => {
+                self.flags.remove(Flags::OVERFLOW);
+            }
+
+            // CPY - Compare Y Register
+            0xC0 | 0xC4 | 0xCC => {
+                let v = bus.read(address);
+                let y = self.y;
+                self.compare(y, v);
+            }
+
+            // INY - Increment Y Register
+            0xC8 => {
+                self.y = self.y.wrapping_add(1);
+                let y = self.y;
+                self.set_zn_flag(y);
+            }
+
+            // BNE - Branch on Not Equal
             0xD0 => {
                 if !self.flags.intersects(Flags::ZERO) {
                     self.branch_to(address);
                 }
             }
+
+            // CLD - Clear Decimal Flag
+            0xD8 => {
+                self.flags.remove(Flags::DECIMAL_MODE);
+            }
+
+            // CPX - Compare X Register
+            0xE0 | 0xE4 | 0xEC => {
+                let v = bus.read(address);
+                let x = self.x;
+                self.compare(x, v);
+            }
+
+            // INX - Increment X Register
+            0xE8 => {
+                self.x = self.x.wrapping_add(1);
+                let x = self.x;
+                self.set_zn_flag(x);
+            }
+
+            // BEQ - Branch on Equal
             0xF0 => {
                 if self.flags.intersects(Flags::ZERO) {
                     self.branch_to(address);
                 }
             }
 
-            0x18 => {
-                self.flags.remove(Flags::CARRY);
-            }
-            0x38 => {
-                self.flags |= Flags::CARRY;
-            }
-            0x58 => {
-                self.flags.remove(Flags::INTERRUPT_DISABLE);
-            }
-            0x78 => {
-                self.flags |= Flags::INTERRUPT_DISABLE;
-            }
-            0xB8 => {
-                self.flags.remove(Flags::OVERFLOW);
-            }
-            0xD8 => {
-                self.flags.remove(Flags::DECIMAL_MODE);
-            }
+            // SED - Set Decimal Flag
             0xF8 => {
                 self.flags |= Flags::DECIMAL_MODE;
             }
 
-            // ALU Operations
+            //// ALU Operations ////
+
+            // ORA - Bitwise OR with Accumulator
             0x01 | 0x05 | 0x09 | 0x0D | 0x11 | 0x15 | 0x19 | 0x1D => {
                 self.a = self.a | bus.read(address);
                 let a = self.a;
                 self.set_zn_flag(a);
             }
+
+            // AND - Bitwise AND with Accumulator
             0x21 | 0x25 | 0x29 | 0x2D | 0x31 | 0x35 | 0x39 | 0x3D => {
                 self.a = self.a & bus.read(address);
                 let a = self.a;
                 self.set_zn_flag(a);
             }
-            0xC1 | 0xC5 | 0xC9 | 0xCD | 0xD1 | 0xD5 | 0xD9 | 0xDD => {
-                let v = bus.read(address);
-                let a = self.a;
-                self.compare(a, v);
-            }
+
+            // EOR - Bitwise Exclusive OR
             0x41 | 0x45 | 0x49 | 0x4D | 0x51 | 0x55 | 0x59 | 0x5D => {
                 self.a = self.a ^ bus.read(address);
                 let a = self.a;
                 self.set_zn_flag(a);
             }
+
+            // ADC - Add with Carry
             0x61 | 0x65 | 0x69 | 0x6D | 0x71 | 0x75 | 0x79 | 0x7D => {
                 let a = self.a;
                 let b: u8 = bus.read(address);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) {
-                    1
-                } else {
-                    0
-                };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
                 self.a = a.wrapping_add(b).wrapping_add(c);
                 let _a = self.a;
                 self.set_zn_flag(_a);
-                self.flags
-                    .set(Flags::CARRY, a as u32 + b as u32 + c as u32 > 0xFF);
-                self.flags
-                    .set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
-            }
-            0x85 => {
-                bus.write(address, self.a);
-            }
-            0x86 => {
-                bus.write(address, self.x);
+                self.flags.set(Flags::CARRY, a as i32 + b as i32 + c as i32 > 0xFF);
+                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
             }
 
-            // Read-Modify-Write Operations
-            0xA2 => {
-                self.x = bus.read(address);
-                let x = self.x;
-                self.set_zn_flag(x);
+            // STA - Store Accumulator
+            0x81 | 0x85 | 0x8D | 0x91 | 0x95 | 0x99 | 0x9D => {
+                bus.write(address, self.a);
             }
-            0xA9 => {
+
+            // LDA - Load Accumulator
+            0xA1 | 0xA5 | 0xA9 | 0xAD | 0xB1 | 0xB5 | 0xB9 | 0xBD  => {
                 self.a = bus.read(address);
                 let a = self.a;
                 self.set_zn_flag(a);
             }
+
+            // CMP - Compare Accumulator
+            0xC1 | 0xC5 | 0xC9 | 0xCD | 0xD1 | 0xD5 | 0xD9 | 0xDD => {
+                let v = bus.read(address);
+                let a = self.a;
+                self.compare(a, v);
+            }
+
+            // SBC - Subtract with Carry
+            0xE1 | 0xE5 | 0xE9 | 0xED | 0xF1 | 0xF5 | 0xF9 | 0xFD => {
+                let a = self.a;
+                let b: u8 = bus.read(address);
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                self.a = a.wrapping_sub(b).wrapping_sub(1 - c);
+                let _a = self.a;
+                self.set_zn_flag(_a);
+                self.flags.set(Flags::CARRY, (a as i32) - (b as i32) - ((1 - c) as i32) >= 0);
+                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 != 0 && (a ^ _a) & 0x80 != 0);
+            }
+
+            //// Read-Modify-Write Operations ////
+
+            // ASL - Arithmetic Shift Left
+            0x06 | 0x0A | 0x0E | 0x16 | 0x1E => {
+                if address_mode == ADDRESS_MODE_ACCUMULATOR {
+                    self.flags.set(Flags::CARRY, ((self.a >> 7) & 1) > 0);
+                    self.a <<= 1;
+                    let a = self.a;
+                    self.set_zn_flag(a);
+                } else {
+                    let mut v = bus.read(address);
+                    self.flags.set(Flags::CARRY, ((v >> 7) & 1) > 0);
+                    v <<= 1;
+                    bus.write(address, v);
+                    self.set_zn_flag(v);
+                }
+            }
+
+            // ROL - Rotate Left
+            0x26 | 0x2A | 0x2E | 0x36 | 0x3E => {
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                if address_mode == ADDRESS_MODE_ACCUMULATOR {
+                    self.flags.set(Flags::CARRY, ((self.a >> 7) & 1) > 0);
+                    self.a = (self.a << 1) | c;
+                    let a = self.a;
+                    self.set_zn_flag(a);
+                } else {
+                    let mut v = bus.read(address);
+                    self.flags.set(Flags::CARRY, ((v >> 7) & 1) > 0);
+                    v  = (v << 1) | c;
+                    bus.write(address, v);
+                    self.set_zn_flag(v);
+                }
+            }
+
+            // LSR - Logical Shift Right
+            0x46 | 0x4A | 0x4E | 0x56 | 0x5E => {
+                if address_mode == ADDRESS_MODE_ACCUMULATOR {
+                    self.flags.set(Flags::CARRY, (self.a & 1) > 0);
+                    self.a >>= 1;
+                    let a = self.a;
+                    self.set_zn_flag(a);
+                } else {
+                    let mut v = bus.read(address);
+                    self.flags.set(Flags::CARRY, (v & 1) > 0);
+                    v >>= 1;
+                    bus.write(address, v);
+                    self.set_zn_flag(v);
+                }
+            }
+
+            // ROR - Rotate Right
+            0x66 | 0x6A | 0x6E | 0x76 | 0x7E => {
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                if address_mode == ADDRESS_MODE_ACCUMULATOR {
+                    self.flags.set(Flags::CARRY, (self.a & 1) > 0);
+                    self.a = (self.a >> 1) | (c << 7);
+                    let a = self.a;
+                    self.set_zn_flag(a);
+                } else {
+                    let mut v = bus.read(address);
+                    self.flags.set(Flags::CARRY, (v & 1) > 0);
+                    v  = (v >> 1) | (c << 7);
+                    bus.write(address, v);
+                    self.set_zn_flag(v);
+                }
+            }
+
+            // STX - Store X Register
+            0x86 | 0x8E => {
+                bus.write(address, self.x);
+            }
+
+            // TXA - Transfer X to A
+            0x8A => {
+                self.a = self.x;
+                let a = self.a;
+                self.set_zn_flag(a);
+            }
+
+            // TXS - Transfer X to Stack Pointer
+            0x9A => {
+                self.sp = self.x;
+            }
+
+            // LDX - Load X Register
+            0xA2 | 0xA6 | 0xAE | 0x96 | 0x9E => {
+                self.x = bus.read(address);
+                let x = self.x;
+                self.set_zn_flag(x)
+            }
+
+            // TAX - Transfer A to X
+            0xAA => {
+                self.x = self.a;
+                let x = self.x;
+                self.set_zn_flag(x);
+            }
+
+            // TSX - Transfer Stack Pointer to X
+            0xBA => {
+                self.x = self.sp;
+                let x = self.x;
+                self.set_zn_flag(x);
+            }
+
+            // DEC - Decrement Memory
+            0xC6 | 0xCE | 0xD6 | 0xDE => {
+                let mut v = bus.read(address);
+                v = v.wrapping_sub(1);
+                bus.write(address, v);
+                self.set_zn_flag(v);
+            }
+
+            // DEX - Decrement X Register
+            0xCA => {
+                self.x = self.x.wrapping_sub(1);
+                let x = self.x;
+                self.set_zn_flag(x);
+            }
+
+            // INC - Increment Memory
+            0xE6 | 0xEE | 0xF6 | 0xFE => {
+                let mut v = bus.read(address);
+                v = v.wrapping_add(1);
+                bus.write(address, v);
+                self.set_zn_flag(v);
+            }
+
+            // NOP
             0xEA => {}
 
             _ => {
@@ -560,6 +844,13 @@ impl Bus {
 
     pub fn read_16(&self, address: u16) -> u16 {
         (self.read(address + 1) as u16) << 8 | self.read(address) as u16
+    }
+
+    pub fn read_16_bug(&self, address: u16) -> u16 {
+        let address_plus_one = (address & 0xFF00) | (address as u8).wrapping_add(1) as u16;
+        let lo = self.read(address);
+        let hi = self.read(address_plus_one);
+        (hi as u16) << 8 | lo as u16
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
@@ -696,7 +987,7 @@ fn main() {
     let mut reader = BufReader::new(f);
     let mut history: Vec<String> = Vec::new();
 
-    for i in 0..500 {
+    for i in 0..5000 {
         let mut expected = String::new();
         reader.read_line(&mut expected).unwrap();
         let expected = expected.trim_right().to_owned();
@@ -717,58 +1008,59 @@ fn main() {
         history.push(expected.clone());
     }
 
-    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    // let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
-    let mut window = Window::new(
-        "Test - ESC to exit",
-        WIDTH,
-        HEIGHT,
-        WindowOptions::default(),
-    ).unwrap_or_else(|e| {
-        panic!("{}", e);
-    });
+    // let mut window = Window::new(
+    //     "Test - ESC to exit",
+    //     WIDTH,
+    //     HEIGHT,
+    //     WindowOptions::default(),
+    // ).unwrap_or_else(|e| {
+    //     panic!("{}", e);
+    // });
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        let mut v = 0;
-        let mut x = 0;
-        let mut y = 0;
-        let offx = 0;
-        let offy = 0;
+    // while window.is_open() && !window.is_key_down(Key::Escape) {
+    //     let mut v = 0;
+    //     let mut x = 0;
+    //     let mut y = 0;
+    //     let offx = 0;
+    //     let offy = 0;
 
-        while v < console.bus.cartridge.chr.len() {
-            x += 1;
-            if x >= WIDTH {
-                x = 0;
-                y += 1;
-            }
-            // if x > 8 {
-            //     x = 0;
-            //     y += 1;
-            //     if y > 8 {
-            //         offx += 16;
-            //         y = 0;
-            //         offy += 16;
-            //         if offy > 32 {break;}
-            //     }
-            // }
-            let c = console.bus.cartridge.chr[v] as u32;
-            buffer[(y + offy) * WIDTH + (x + offx)] = c; //  (c << 24) | (c << 16) | (c << 8) | c;
-            buffer[(y + offy) * WIDTH + (x + offx)] = (c << 24) | (c << 16) | (c << 8) | c;
-            //buffer[(y + offy) * WIDTH + (x + offx)] =  (c << 24) | (c << 16) | (c << 8) | c;
-            v += 1;
-        }
+    //     while v < console.bus.cartridge.chr.len() {
+    //         x += 1;
+    //         if x >= WIDTH {
+    //             x = 0;
+    //             y += 1;
+    //         }
+    //         // if x > 8 {
+    //         //     x = 0;
+    //         //     y += 1;
+    //         //     if y > 8 {
+    //         //         offx += 16;
+    //         //         y = 0;
+    //         //         offy += 16;
+    //         //         if offy > 32 {break;}
+    //         //     }
+    //         // }
+    //         let c = console.bus.cartridge.chr[v] as u32;
+    //         buffer[(y + offy) * WIDTH + (x + offx)] = c; //  (c << 24) | (c << 16) | (c << 8) | c;
+    //         buffer[(y + offy) * WIDTH + (x + offx)] = (c << 24) | (c << 16) | (c << 8) | c;
+    //         //buffer[(y + offy) * WIDTH + (x + offx)] =  (c << 24) | (c << 16) | (c << 8) | c;
+    //         v += 1;
+    //     }
 
-        // let mut x = 0;
-        // for i in buffer.iter_mut() {
-        //     let c = vram[x % 0x2000] as u32;
-        //     *i =  (c << 24) | (c << 16) | (c << 8) | c;
-        //     //*i = (c << 8) | c;
-        //     //*i = c;
-        //     //*i = 0; // write something more funny here!
-        //     x += 1;
-        // }
+    //     // let mut x = 0;
+    //     // for i in buffer.iter_mut() {
+    //     //     let c = vram[x % 0x2000] as u32;
+    //     //     *i =  (c << 24) | (c << 16) | (c << 8) | c;
+    //     //     //*i = (c << 8) | c;
+    //     //     //*i = c;
+    //     //     //*i = 0; // write something more funny here!
+    //     //     x += 1;
+    //     // }
 
-        // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
-        window.update_with_buffer(&buffer).unwrap();
-    }
+    //     // We unwrap here as we want this code to exit if it fails.
+    //     // Real applications may want to handle this in a different way
+    //     window.update_with_buffer(&buffer).unwrap();
+    // }
 }
