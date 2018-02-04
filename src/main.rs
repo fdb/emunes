@@ -1212,6 +1212,7 @@ mod tests {
             if !result {
                 let result = console.bus.read_16(0x02);
                 println!("Done. Result code = {:04X}", result);
+                // See testroms/nestest.txt to see what error codes we can get.
                 assert_eq!(result, 0x0000);
                 break;
             }
