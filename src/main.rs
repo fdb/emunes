@@ -6,9 +6,7 @@ extern crate minifb;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
-use std::io::prelude::*;
-
-use std::io::BufReader;
+use std::env;
 
 //use minifb::{Key, Window, WindowOptions};
 
@@ -1056,12 +1054,6 @@ fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
         chr.resize(8192, 0);
     }
 
-    // let mut file = File::create("dat.rom")?;
-    // file.write_all(&rom);
-
-    // let mut file = File::create("dat.vram")?;
-    // file.write_all(&vram);
-
     let mut sram: Vec<u8> = Vec::new();
     sram.resize(8192, 0);
 
@@ -1075,8 +1067,19 @@ fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
     })
 }
 
+fn usage() {
+    println!("Usage: emunes romfile.nes");
+}
+
 fn main() {
-    let cartridge = read_rom("testroms/nestest.nes").unwrap();
+    let args: Vec<_> = env::args().collect();
+    if args.len() < 2 {
+        usage();
+        std::process::exit(1);
+    }
+
+    let filename = &args[1];
+    let cartridge = read_rom(&filename).unwrap();
 
     //let mapper = new_mapper(cartridge.mapper_type, cartridge);
     let mut ram: Vec<u8> = Vec::new();
@@ -1089,42 +1092,13 @@ fn main() {
     let mut console = Console { cpu, bus };
 
     console.reset();
-    // This is specifically for the nestest log.
-    // Setting the PC to 0xC000 will run automated tests.
-    // This allows it to be compared to the nestest.log.
-    // See http://www.qmtpro.com/~nes/misc/nestest.txt for more info.
-    console.cpu.pc = 0xC000;
 
-    let f = File::open("testroms/nestest.log").unwrap();
-    let mut reader = BufReader::new(f);
-    let mut history: Vec<String> = Vec::new();
-
-    let mut i = 0;
     loop {
-        let mut expected = String::new();
-        reader.read_line(&mut expected).unwrap();
-        let expected = expected.trim_right().to_owned();
-        let actual = console.log_string();
-        //println!("{}", expected);
-        if actual != expected {
-            println!("Processor state does not match the test logs:");
-            let min = (i as i32) - 10;
-            let min = if min < 0 { 0 } else { min };
-            for j in min..i {
-                println!("  {}", history[j as usize]);
-            }
-            println!("Line {}:", i + 1);
-            println!("  {}\n* {}", expected, actual);
-            break;
-        }
+        println!("{}", console.log_string());
         let result = console.step();
         if !result {
-            let result = console.bus.read_16(0x02);
-            println!("Done. Result code = {:04X}", result);
             break;
         }
-        history.push(expected.clone());
-        i += 1;
     }
 
     // let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
@@ -1182,4 +1156,67 @@ fn main() {
     //     // Real applications may want to handle this in a different way
     //     window.update_with_buffer(&buffer).unwrap();
     // }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::prelude::*;
+    use std::io::BufReader;
+
+    #[test]
+    fn it_runs_nestest() {
+        let cartridge = read_rom("testroms/nestest.nes").unwrap();
+
+        //let mapper = new_mapper(cartridge.mapper_type, cartridge);
+        let mut ram: Vec<u8> = Vec::new();
+        ram.resize(2048, 0);
+
+        let cpu = CPU::new();
+
+        let bus = Bus { cartridge, ram };
+
+        let mut console = Console { cpu, bus };
+
+        console.reset();
+        // This is specifically for the nestest log.
+        // Setting the PC to 0xC000 will run automated tests.
+        // This allows it to be compared to the nestest.log.
+        // See http://www.qmtpro.com/~nes/misc/nestest.txt for more info.
+        console.cpu.pc = 0xC000;
+
+        let f = File::open("testroms/nestest.log").unwrap();
+        let mut reader = BufReader::new(f);
+        let mut history: Vec<String> = Vec::new();
+
+        let mut i = 0;
+        loop {
+            let mut expected = String::new();
+            reader.read_line(&mut expected).unwrap();
+            let expected = expected.trim_right().to_owned();
+            let actual = console.log_string();
+            assert_eq!(expected, actual);
+            //println!("{}", expected);
+            if actual != expected {
+                println!("Processor state does not match the test logs:");
+                let min = (i as i32) - 10;
+                let min = if min < 0 { 0 } else { min };
+                for j in min..i {
+                    println!("  {}", history[j as usize]);
+                }
+                println!("Line {}:", i + 1);
+                println!("  {}\n* {}", expected, actual);
+                break;
+            }
+            let result = console.step();
+            if !result {
+                let result = console.bus.read_16(0x02);
+                println!("Done. Result code = {:04X}", result);
+                assert_eq!(result, 0x0000);
+                break;
+            }
+            history.push(expected.clone());
+            i += 1;
+        }
+    }
 }
