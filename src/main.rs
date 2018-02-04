@@ -2,6 +2,7 @@
 extern crate bitflags;
 extern crate minifb;
 mod cpu;
+mod ppu;
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -9,12 +10,15 @@ use std::io;
 use std::env;
 
 use cpu::CPU;
+use ppu::PPU;
 
 //use minifb::{Key, Window, WindowOptions};
 
 
 //const WIDTH: usize = 640;
 //const HEIGHT: usize = 360;
+const BUFFER_WIDTH: usize = 256;
+const BUFFER_HEIGHT: usize = 240;
 
 pub trait BitReader {
     fn read_u8(&mut self) -> Result<u8, io::Error>;
@@ -117,9 +121,25 @@ pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
 pub struct Bus {
     pub cartridge: Cartridge,
     pub ram: Vec<u8>,
+    pub ppu_name_table: [u8; 2048],
+    pub ppu_palette: [u8; 32],
+    pub ppu_oam: [u8; 256],
+    pub ppu_front_buffer: Vec<u32>,
+    pub ppu_back_buffer: Vec<u32>,
 }
 
 impl Bus {
+    pub fn new(cartridge: Cartridge, ram: Vec<u8>) -> Bus {
+        Bus {
+            cartridge, ram,
+            ppu_name_table: [0; 2048],
+            ppu_palette: [0; 32],
+            ppu_oam: [0; 256],
+            ppu_front_buffer: Vec::with_capacity(BUFFER_WIDTH * BUFFER_HEIGHT),
+            ppu_back_buffer: Vec::with_capacity(BUFFER_WIDTH * BUFFER_HEIGHT),
+        }
+    }
+
     pub fn read(&self, address: u16) -> u8 {
         match address {
             0x0000...0x1FFF => self.ram[(address % 0x2000) as usize],
@@ -159,10 +179,27 @@ impl Bus {
             _ => panic!("Invalid bus mapper read at address {}", address),
         }
     }
+
+    pub fn ppu_read(&self, address: u16) -> u8 {
+        let address = address % 0x4000;
+        match address {
+            0x0000...0x1FFF => self.mapper_read(address),
+            0x2000...0x3F00 => {
+                let mode = self.cartridge.mirror_mode;
+                // FIXME: this is wrong
+                self.ppu_name_table[address as usize]
+            },
+            0x3F00...0x4000 => {
+                self.ppu_palette[(address % 32) as usize]
+            }
+            _ => panic!("Invalid bus PPU read at address {}", address),
+        }
+    }
 }
 
 pub struct Console {
     pub cpu: CPU,
+    pub ppu: PPU,
     pub bus: Bus,
 }
 
@@ -177,6 +214,10 @@ impl Console {
 
     pub fn step(&mut self) -> u32 {
         let cpu_cycles = self.cpu.step(&mut self.bus);
+        let ppu_cycles = cpu_cycles * 3;
+        for _ in 0..ppu_cycles {
+            self.ppu.step(&mut self.bus);
+        }
         cpu_cycles
     }
 }
@@ -270,10 +311,11 @@ fn main() {
     ram.resize(2048, 0);
 
     let cpu = CPU::new();
+    let ppu = PPU::new();
 
-    let bus = Bus { cartridge, ram };
+    let bus = Bus::new(cartridge, ram);
 
-    let mut console = Console { cpu, bus };
+    let mut console = Console { cpu, ppu, bus };
 
     console.reset();
 
