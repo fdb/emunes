@@ -45,7 +45,7 @@ const INSTRUCTION_SIZES: [u8; 256] = [
     1, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
     3, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
     1, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    1, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 0, 3, 3, 3, 3, 2, 2, 0, 0, 2, 2, 2, 2, 1, 3, 1, 0, 0, 3, 0, 0,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 2, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 0, 3, 3, 3, 3,
     2, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
@@ -286,9 +286,10 @@ impl CPU {
     }
 
     pub fn branch_to(&mut self, address: u16) {
+        let prev_pc = self.pc;
         self.pc = address;
         self.cycles += 1;
-        if pages_differ(self.pc, address) {
+        if pages_differ(prev_pc, address) {
             self.cycles += 1;
         }
     }
@@ -359,7 +360,7 @@ impl CPU {
         println!("{}", self.log_string(&bus));
     }
 
-    pub fn step(&mut self, mut bus: &mut Bus) {
+    pub fn step(&mut self, mut bus: &mut Bus) -> bool {
         let opcode = bus.read(self.pc);
         let address_mode = INSTRUCTION_MODES[opcode as usize];
         let address = self.get_address(&bus, opcode, true);
@@ -457,6 +458,9 @@ impl CPU {
             // RTS - Return from Subroutine
             0x60 => {
                 self.pc = self.pull_16(&bus) + 1;
+                if self.pc == 0x0001 {
+                    return false;
+                }
             }
 
             // PLA - Pull Accumulator
@@ -813,6 +817,23 @@ impl CPU {
                 bus.write(address, b);
             }
 
+            // RRA - ROR + ADC
+            0x63 | 0x67 | 0x6F | 0x73 | 0x77 | 0x7B | 0x7F => {
+                let a = self.a;
+                let mut b: u8 = bus.read(address);
+                let mut c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                self.flags.set(Flags::CARRY, (b & 1) > 0);
+                b = (b >> 1) | (c << 7);
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let result: u16 =  a as u16 + b as u16 + c as u16;
+                self.a = (result & 0xFF) as u8;
+                let _a = self.a;
+                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a as u8) & 0x80 != 0);
+                self.flags.set(Flags::CARRY, result > 0x100);
+                self.set_zn_flag(_a);
+                bus.write(address, b);
+            }
+
             // SAX - STA + STX
             0x83 | 0x87 | 0x8F | 0x97 => {
                 bus.write(address, self.a & self.x)
@@ -865,6 +886,7 @@ impl CPU {
                 );
             }
         }
+        true
     }
 }
 
@@ -921,13 +943,14 @@ impl Bus {
         match address {
             0x0000...0x1FFF => self.ram[(address % 0x2000) as usize],
             0x2000...0x4000 => 0xCC, // TODO: self.ppu.read_register(0x2000 + address % 8)
+            0x4004...0x4013 => 0xFF, // TODO: mirrored memory?
             0x4014 => 0xCC,          // TODO: self.ppu.read_register(address)
-            0x4015 => 0xCC,          // TODO: self.apu.read_register(address)
-            0x4016 => 0xCC,          // TODO: self.controller1.read()
-            0x4017 => 0xCC,          // TODO: self.controller2.read()
-            0x4018...0x5FFF => 0xCC, // TODO: I/O registers
+            0x4015 => 0xFF,          // TODO: self.apu.read_register(address)
+            0x4016 => 0xFF,          // TODO: self.controller1.read()
+            0x4017 => 0xFF,          // TODO: self.controller2.read()
+            0x4018...0x5FFF => 0xFF, // TODO: I/O registers
             0x6000...0xFFFF => self.mapper_read(address),
-            _ => panic!("Invalid bus memory read at address {}", address),
+            _ => panic!("Invalid bus memory read at address {:04X}", address),
         }
     }
 
@@ -971,7 +994,7 @@ impl Console {
         self.cpu.log_string(&self.bus)
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> bool {
         self.cpu.step(&mut self.bus)
     }
 }
@@ -1076,7 +1099,8 @@ fn main() {
     let mut reader = BufReader::new(f);
     let mut history: Vec<String> = Vec::new();
 
-    for i in 0..10000 {
+    let mut i = 0;
+    loop {
         let mut expected = String::new();
         reader.read_line(&mut expected).unwrap();
         let expected = expected.trim_right().to_owned();
@@ -1093,8 +1117,14 @@ fn main() {
             println!("  {}\n* {}", expected, actual);
             break;
         }
-        console.step();
+        let result = console.step();
+        if !result {
+            let result = console.bus.read_16(0x02);
+            println!("Done. Result code = {:04X}", result);
+            break;
+        }
         history.push(expected.clone());
+        i += 1;
     }
 
     // let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
