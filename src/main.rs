@@ -7,11 +7,10 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
 use std::io::prelude::*;
-use std::num::Wrapping;
 
 use std::io::BufReader;
 
-use minifb::{Key, Window, WindowOptions};
+//use minifb::{Key, Window, WindowOptions};
 
 const ADDRESS_MODE_ABSOLUTE: u8 = 1;
 const ADDRESS_MODE_ABSOLUTE_X: u8 = 2;
@@ -27,8 +26,8 @@ const ADDRESS_MODE_ZERO_PAGE: u8 = 11;
 const ADDRESS_MODE_ZERO_PAGE_X: u8 = 12;
 const ADDRESS_MODE_ZERO_PAGE_Y: u8 = 13;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 360;
+//const WIDTH: usize = 640;
+//const HEIGHT: usize = 360;
 
 const INSTRUCTION_MODES: [u8; 256] = [
     6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2,
@@ -47,7 +46,7 @@ const INSTRUCTION_SIZES: [u8; 256] = [
     3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
     1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
     1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
+    2, 2, 2, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 2, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 0, 3, 3, 3, 3,
     2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
     2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
