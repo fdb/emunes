@@ -175,8 +175,9 @@ impl Console {
         self.cpu.log_string(&self.bus)
     }
 
-    pub fn step(&mut self) -> bool {
-        self.cpu.step(&mut self.bus)
+    pub fn step(&mut self) -> u32 {
+        let cpu_cycles = self.cpu.step(&mut self.bus);
+        cpu_cycles
     }
 }
 
@@ -278,10 +279,7 @@ fn main() {
 
     loop {
         println!("{}", console.log_string());
-        let result = console.step();
-        if !result {
-            break;
-        }
+        console.step();
     }
 
     // let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
@@ -377,6 +375,7 @@ mod tests {
             let mut expected = String::new();
             reader.read_line(&mut expected).unwrap();
             let expected = expected.trim_right().to_owned();
+            if expected.len() == 0 { break; }
             let actual = console.log_string();
             assert_eq!(expected, actual);
             //println!("{}", expected);
@@ -391,16 +390,13 @@ mod tests {
                 println!("  {}\n* {}", expected, actual);
                 break;
             }
-            let result = console.step();
-            if !result {
-                let result = console.bus.read_16(0x02);
-                println!("Done. Result code = {:04X}", result);
-                // See testroms/nestest.txt to see what error codes we can get.
-                assert_eq!(result, 0x0000);
-                break;
-            }
+            console.step();
             history.push(expected.clone());
             i += 1;
         }
+        let result = console.bus.read_16(0x02);
+        println!("Done. Result code = {:04X}", result);
+        // See testroms/nestest.txt to see what error codes we can get.
+        assert_eq!(result, 0x0000);
     }
 }

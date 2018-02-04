@@ -291,7 +291,8 @@ impl CPU {
         println!("{}", self.log_string(&bus));
     }
 
-    pub fn step(&mut self, mut bus: &mut Bus) -> bool {
+    pub fn step(&mut self, mut bus: &mut Bus) -> u32 {
+        let old_cycles = self.cycles;
         let opcode = bus.read(self.pc);
         let address_mode = INSTRUCTION_MODES[opcode as usize];
         let address = self.get_address(&bus, opcode, true);
@@ -389,9 +390,6 @@ impl CPU {
             // RTS - Return from Subroutine
             0x60 => {
                 self.pc = self.pull_16(&bus) + 1;
-                if self.pc == 0x0001 {
-                    return false;
-                }
             }
 
             // PLA - Pull Accumulator
@@ -817,6 +815,6 @@ impl CPU {
                 );
             }
         }
-        true
+        return (self.cycles - old_cycles) as u32
     }
 }
