@@ -250,6 +250,16 @@ impl CPU {
         let mut page_crossed = false;
         let address = match address_mode {
             ADDRESS_MODE_ABSOLUTE => bus.read_16(self.pc + 1),
+            ADDRESS_MODE_ABSOLUTE_X => {
+                let address = bus.read_16(self.pc + 1).wrapping_add(self.x as u16);
+                page_crossed = pages_differ(address.wrapping_sub(self.x as u16), address);
+                address
+            },
+            ADDRESS_MODE_ABSOLUTE_Y => {
+                let address = bus.read_16(self.pc + 1).wrapping_add(self.y as u16);
+                page_crossed = pages_differ(address.wrapping_sub(self.y as u16), address);
+                address
+            },
             ADDRESS_MODE_ACCUMULATOR => 0,
             ADDRESS_MODE_IMMEDIATE => self.pc + 1,
             ADDRESS_MODE_IMPLIED => 0,
@@ -269,6 +279,8 @@ impl CPU {
                 }
             }
             ADDRESS_MODE_ZERO_PAGE => bus.read(self.pc + 1) as u16,
+            ADDRESS_MODE_ZERO_PAGE_X => ((bus.read(self.pc + 1) as u16).wrapping_add(self.x as u16) & 0xFF as u16),
+            ADDRESS_MODE_ZERO_PAGE_Y => ((bus.read(self.pc + 1) as u16).wrapping_add(self.y as u16) & 0xFF as u16),
             _ => panic!("Invalid address mode {}", address_mode),
         };
 
@@ -311,15 +323,18 @@ impl CPU {
         let value = bus.read(address);
         let mut address_string = match address_mode {
             ADDRESS_MODE_ABSOLUTE => format!("${:04X} = {:02X}", address, value),
+            ADDRESS_MODE_ABSOLUTE_X => format!("${:02X}{:02X},X @ {:04X} = {:02X}", arg2, arg1, address, value),
+            ADDRESS_MODE_ABSOLUTE_Y => format!("${:02X}{:02X},Y @ {:04X} = {:02X}", arg2, arg1, address, value),
             ADDRESS_MODE_ACCUMULATOR => "A".to_owned(),
             ADDRESS_MODE_RELATIVE => format!("${:04X}", address),
             ADDRESS_MODE_IMMEDIATE => format!("#${:02X}", arg1),
             ADDRESS_MODE_INDEXED_INDIRECT => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", arg1, (arg1.wrapping_add(self.x)), address, value),
             ADDRESS_MODE_INDIRECT => format!("(${:02X}{:02X}) = {:04X}", arg2, arg1, address),
             ADDRESS_MODE_INDIRECT_INDEXED => format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", arg1, bus.read_16_bug(arg1 as u16), address, value),
-
             ADDRESS_MODE_IMPLIED => "".to_owned(),
             ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, value),
+            ADDRESS_MODE_ZERO_PAGE_X => format!("${:02X},X @ {:02X} = {:02X}", arg1, address, value),
+            ADDRESS_MODE_ZERO_PAGE_Y => format!("${:02X},Y @ {:02X} = {:02X}", arg1, address, value),
             _ => format!("??? opcode {:02X} mode {}", opcode, address_mode)
         };
 
