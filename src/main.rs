@@ -42,14 +42,14 @@ const INSTRUCTION_MODES: [u8; 256] = [
 ];
 
 const INSTRUCTION_SIZES: [u8; 256] = [
+    1, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
+    3, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
+    1, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
     1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    2, 2, 2, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 0, 3, 3, 3, 3, 2, 2, 0, 0, 2, 2, 2, 2, 1, 3, 1, 0, 0, 3, 0, 0,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 2, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 0, 3, 3, 3, 3,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
-    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 0, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
+    2, 2, 0, 2, 2, 2, 2, 2, 1, 2, 1, 2, 3, 3, 3, 3, 2, 2, 0, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3,
 ];
 
 const INSTRUCTION_CYCLES: [u8; 256] = [
@@ -637,7 +637,7 @@ impl CPU {
             }
 
             // SBC - Subtract with Carry
-            0xE1 | 0xE5 | 0xE9 | 0xED | 0xF1 | 0xF5 | 0xF9 | 0xFD => {
+            0xE1 | 0xE5 | 0xE9 | 0xED | 0xF1 | 0xF5 | 0xF9 | 0xFD | 0xEB => {
                 let a = self.a;
                 let b: u8 = bus.read(address);
                 let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
@@ -779,12 +779,74 @@ impl CPU {
 
             //// Unofficial Operations ////
 
+            // SLO - ASL + ORA
+            0x03 | 0x07 | 0x0F | 0x13 | 0x17 | 0x1B | 0x1F => {
+                let mut b: u8 = bus.read(address);
+                self.flags.set(Flags::CARRY, ((b >> 7) & 1) > 0);
+                b <<= 1;
+                self.a |= b;
+                let a = self.a;
+                self.set_zn_flag(a);
+                bus.write(address, b);
+            }
+
+            // RLA - ROL + AND
+            0x23 | 0x27 | 0x2F | 0x33 | 0x37 | 0x3B | 0x3F => {
+                let mut b: u8 = bus.read(address);
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                self.flags.set(Flags::CARRY, ((b >> 7) & 1) > 0);
+                b = (b << 1) | c;
+                self.a &= b;
+                let a = self.a;
+                self.set_zn_flag(a);
+                bus.write(address, b);
+            }
+
+            // SRE - LSR + EOR
+            0x43 | 0x47 | 0x4F | 0x53 | 0x57 | 0x5B | 0x5F => {
+                let mut b: u8 = bus.read(address);
+                self.flags.set(Flags::CARRY, (b & 1) > 0);
+                b >>= 1;
+                self.a ^= b;
+                let a = self.a;
+                self.set_zn_flag(a);
+                bus.write(address, b);
+            }
+
+            // SAX - STA + STX
+            0x83 | 0x87 | 0x8F | 0x97 => {
+                bus.write(address, self.a & self.x)
+            }
+
             // LAX - LDA + LDX
             0xA3 | 0xA7 | 0xAB | 0xAF | 0xB3 | 0xB7 | 0xBB | 0xBF => {
                 let v = bus.read(address);
                 self.a = v;
                 self.x = v;
                 self.set_zn_flag(v);
+            }
+
+            // DCP - DEC + CMP
+            0xC3 | 0xC7 | 0xCF | 0xD3 | 0xD7 | 0xDB | 0xDF => {
+                let mut v = bus.read(address);
+                v = v.wrapping_sub(1);
+                let a = self.a;
+                self.compare(a, v);
+                bus.write(address, v);
+            }
+
+            // ISB/ISC - INC + SBC
+            0xE3 | 0xE7 | 0xEF | 0xF3 | 0xF7 | 0xFB | 0xFF => {
+                let a = self.a;
+                let mut b: u8 = bus.read(address);
+                b = b.wrapping_add(1);
+                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                self.a = a.wrapping_sub(b).wrapping_sub(1 - c);
+                let _a = self.a;
+                self.set_zn_flag(_a);
+                self.flags.set(Flags::CARRY, (a as i32) - (b as i32) - ((1 - c) as i32) >= 0);
+                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 != 0 && (a ^ _a) & 0x80 != 0);
+                bus.write(address, b);
             }
 
             // NOP - No Operation
