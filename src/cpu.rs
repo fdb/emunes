@@ -1,4 +1,4 @@
-use ::Bus;
+use Bus;
 
 const ADDRESS_MODE_ABSOLUTE: u8 = 1;
 const ADDRESS_MODE_ABSOLUTE_X: u8 = 2;
@@ -13,7 +13,6 @@ const ADDRESS_MODE_RELATIVE: u8 = 10;
 const ADDRESS_MODE_ZERO_PAGE: u8 = 11;
 const ADDRESS_MODE_ZERO_PAGE_X: u8 = 12;
 const ADDRESS_MODE_ZERO_PAGE_Y: u8 = 13;
-
 
 const INSTRUCTION_MODES: [u8; 256] = [
     6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2,
@@ -60,24 +59,29 @@ const INSTRUCTION_PAGE_CYCLES: [u8; 256] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
 ];
 
-
 const INSTRUCTION_NAMES: &'static [&'static str] = &[
-    " BRK", " ORA", "*HLT", "*SLO", "*NOP", " ORA", " ASL", "*SLO", " PHP", " ORA", " ASL", "*AAC", "*NOP", " ORA", " ASL", "*SLO",
-    " BPL", " ORA", "*HLT", "*SLO", "*NOP", " ORA", " ASL", "*SLO", " CLC", " ORA", "*NOP", "*SLO", "*NOP", " ORA", " ASL", "*SLO",
-    " JSR", " AND", "*HLT", "*RLA", " BIT", " AND", " ROL", "*RLA", " PLP", " AND", " ROL", "*AAC", " BIT", " AND", " ROL", "*RLA",
-    " BMI", " AND", "*HLT", "*RLA", "*NOP", " AND", " ROL", "*RLA", " SEC", " AND", "*NOP", "*RLA", "*NOP", " AND", " ROL", "*RLA",
-    " RTI", " EOR", "*HLT", "*SRE", "*NOP", " EOR", " LSR", "*SRE", " PHA", " EOR", " LSR", "*ASR", " JMP", " EOR", " LSR", "*SRE",
-    " BVC", " EOR", "*HLT", "*SRE", "*NOP", " EOR", " LSR", "*SRE", " CLI", " EOR", "*NOP", "*SRE", "*NOP", " EOR", " LSR", "*SRE",
-    " RTS", " ADC", "*HLT", "*RRA", "*NOP", " ADC", " ROR", "*RRA", " PLA", " ADC", " ROR", "*ARR", " JMP", " ADC", " ROR", "*RRA",
-    " BVS", " ADC", "*HLT", "*RRA", "*NOP", " ADC", " ROR", "*RRA", " SEI", " ADC", "*NOP", "*RRA", "*NOP", " ADC", " ROR", "*RRA",
-    "*NOP", " STA", "*NOP", "*SAX", " STY", " STA", " STX", "*SAX", " DEY", "*NOP", " TXA", " ???", " STY", " STA", " STX", "*SAX",
-    " BCC", " STA", "*HLT", " ???", " STY", " STA", " STX", "*SAX", " TYA", " STA", " TXS", " ???", " ???", " STA", " ???", " ???",
-    " LDY", " LDA", " LDX", "*LAX", " LDY", " LDA", " LDX", "*LAX", " TAY", " LDA", " TAX", "*ATX", " LDY", " LDA", " LDX", "*LAX",
-    " BCS", " LDA", "*HLT", "*LAX", " LDY", " LDA", " LDX", "*LAX", " CLV", " LDA", " TSX", " ???", " LDY", " LDA", " LDX", "*LAX",
-    " CPY", " CMP", "*NOP", "*DCP", " CPY", " CMP", " DEC", "*DCP", " INY", " CMP", " DEX", "*AXS", " CPY", " CMP", " DEC", "*DCP",
-    " BNE", " CMP", "*HLT", "*DCP", "*NOP", " CMP", " DEC", "*DCP", " CLD", " CMP", "*NOP", "*DCP", "*NOP", " CMP", " DEC", "*DCP",
-    " CPX", " SBC", "*NOP", "*ISB", " CPX", " SBC", " INC", "*ISB", " INX", " SBC", " NOP", "*SBC", " CPX", " SBC", " INC", "*ISB",
-    " BEQ", " SBC", "*HLT", "*ISB", "*NOP", " SBC", " INC", "*ISB", " SED", " SBC", "*NOP", "*ISB", "*NOP", " SBC", " INC", "*ISB",
+    " BRK", " ORA", "*HLT", "*SLO", "*NOP", " ORA", " ASL", "*SLO", " PHP", " ORA", " ASL", "*AAC",
+    "*NOP", " ORA", " ASL", "*SLO", " BPL", " ORA", "*HLT", "*SLO", "*NOP", " ORA", " ASL", "*SLO",
+    " CLC", " ORA", "*NOP", "*SLO", "*NOP", " ORA", " ASL", "*SLO", " JSR", " AND", "*HLT", "*RLA",
+    " BIT", " AND", " ROL", "*RLA", " PLP", " AND", " ROL", "*AAC", " BIT", " AND", " ROL", "*RLA",
+    " BMI", " AND", "*HLT", "*RLA", "*NOP", " AND", " ROL", "*RLA", " SEC", " AND", "*NOP", "*RLA",
+    "*NOP", " AND", " ROL", "*RLA", " RTI", " EOR", "*HLT", "*SRE", "*NOP", " EOR", " LSR", "*SRE",
+    " PHA", " EOR", " LSR", "*ASR", " JMP", " EOR", " LSR", "*SRE", " BVC", " EOR", "*HLT", "*SRE",
+    "*NOP", " EOR", " LSR", "*SRE", " CLI", " EOR", "*NOP", "*SRE", "*NOP", " EOR", " LSR", "*SRE",
+    " RTS", " ADC", "*HLT", "*RRA", "*NOP", " ADC", " ROR", "*RRA", " PLA", " ADC", " ROR", "*ARR",
+    " JMP", " ADC", " ROR", "*RRA", " BVS", " ADC", "*HLT", "*RRA", "*NOP", " ADC", " ROR", "*RRA",
+    " SEI", " ADC", "*NOP", "*RRA", "*NOP", " ADC", " ROR", "*RRA", "*NOP", " STA", "*NOP", "*SAX",
+    " STY", " STA", " STX", "*SAX", " DEY", "*NOP", " TXA", " ???", " STY", " STA", " STX", "*SAX",
+    " BCC", " STA", "*HLT", " ???", " STY", " STA", " STX", "*SAX", " TYA", " STA", " TXS", " ???",
+    " ???", " STA", " ???", " ???", " LDY", " LDA", " LDX", "*LAX", " LDY", " LDA", " LDX", "*LAX",
+    " TAY", " LDA", " TAX", "*ATX", " LDY", " LDA", " LDX", "*LAX", " BCS", " LDA", "*HLT", "*LAX",
+    " LDY", " LDA", " LDX", "*LAX", " CLV", " LDA", " TSX", " ???", " LDY", " LDA", " LDX", "*LAX",
+    " CPY", " CMP", "*NOP", "*DCP", " CPY", " CMP", " DEC", "*DCP", " INY", " CMP", " DEX", "*AXS",
+    " CPY", " CMP", " DEC", "*DCP", " BNE", " CMP", "*HLT", "*DCP", "*NOP", " CMP", " DEC", "*DCP",
+    " CLD", " CMP", "*NOP", "*DCP", "*NOP", " CMP", " DEC", "*DCP", " CPX", " SBC", "*NOP", "*ISB",
+    " CPX", " SBC", " INC", "*ISB", " INX", " SBC", " NOP", "*SBC", " CPX", " SBC", " INC", "*ISB",
+    " BEQ", " SBC", "*HLT", "*ISB", "*NOP", " SBC", " INC", "*ISB", " SED", " SBC", "*NOP", "*ISB",
+    "*NOP", " SBC", " INC", "*ISB",
 ];
 
 bitflags! {
@@ -180,19 +184,22 @@ impl CPU {
                 let address = bus.read_16(self.pc + 1).wrapping_add(self.x as u16);
                 page_crossed = pages_differ(address.wrapping_sub(self.x as u16), address);
                 address
-            },
+            }
             ADDRESS_MODE_ABSOLUTE_Y => {
                 let address = bus.read_16(self.pc + 1).wrapping_add(self.y as u16);
                 page_crossed = pages_differ(address.wrapping_sub(self.y as u16), address);
                 address
-            },
+            }
             ADDRESS_MODE_ACCUMULATOR => 0,
             ADDRESS_MODE_IMMEDIATE => self.pc + 1,
             ADDRESS_MODE_IMPLIED => 0,
-            ADDRESS_MODE_INDEXED_INDIRECT => bus.read_16_bug((bus.read(self.pc + 1).wrapping_add(self.x)) as u16),
+            ADDRESS_MODE_INDEXED_INDIRECT => {
+                bus.read_16_bug((bus.read(self.pc + 1).wrapping_add(self.x)) as u16)
+            }
             ADDRESS_MODE_INDIRECT => bus.read_16_bug(bus.read_16(self.pc + 1)),
             ADDRESS_MODE_INDIRECT_INDEXED => {
-                let address = bus.read_16_bug((bus.read(self.pc + 1) as u16)).wrapping_add(self.y as u16);
+                let address = bus.read_16_bug((bus.read(self.pc + 1) as u16))
+                    .wrapping_add(self.y as u16);
                 page_crossed = pages_differ(address.wrapping_sub(self.y as u16), address);
                 address
             }
@@ -205,8 +212,12 @@ impl CPU {
                 }
             }
             ADDRESS_MODE_ZERO_PAGE => bus.read(self.pc + 1) as u16,
-            ADDRESS_MODE_ZERO_PAGE_X => ((bus.read(self.pc + 1) as u16).wrapping_add(self.x as u16) & 0xFF as u16),
-            ADDRESS_MODE_ZERO_PAGE_Y => ((bus.read(self.pc + 1) as u16).wrapping_add(self.y as u16) & 0xFF as u16),
+            ADDRESS_MODE_ZERO_PAGE_X => {
+                ((bus.read(self.pc + 1) as u16).wrapping_add(self.x as u16) & 0xFF as u16)
+            }
+            ADDRESS_MODE_ZERO_PAGE_Y => {
+                ((bus.read(self.pc + 1) as u16).wrapping_add(self.y as u16) & 0xFF as u16)
+            }
             _ => panic!("Invalid address mode {}", address_mode),
         };
 
@@ -250,19 +261,41 @@ impl CPU {
         let value = bus.read(address);
         let mut address_string = match address_mode {
             ADDRESS_MODE_ABSOLUTE => format!("${:04X} = {:02X}", address, value),
-            ADDRESS_MODE_ABSOLUTE_X => format!("${:02X}{:02X},X @ {:04X} = {:02X}", arg2, arg1, address, value),
-            ADDRESS_MODE_ABSOLUTE_Y => format!("${:02X}{:02X},Y @ {:04X} = {:02X}", arg2, arg1, address, value),
+            ADDRESS_MODE_ABSOLUTE_X => format!(
+                "${:02X}{:02X},X @ {:04X} = {:02X}",
+                arg2, arg1, address, value
+            ),
+            ADDRESS_MODE_ABSOLUTE_Y => format!(
+                "${:02X}{:02X},Y @ {:04X} = {:02X}",
+                arg2, arg1, address, value
+            ),
             ADDRESS_MODE_ACCUMULATOR => "A".to_owned(),
             ADDRESS_MODE_RELATIVE => format!("${:04X}", address),
             ADDRESS_MODE_IMMEDIATE => format!("#${:02X}", arg1),
-            ADDRESS_MODE_INDEXED_INDIRECT => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", arg1, (arg1.wrapping_add(self.x)), address, value),
+            ADDRESS_MODE_INDEXED_INDIRECT => format!(
+                "(${:02X},X) @ {:02X} = {:04X} = {:02X}",
+                arg1,
+                (arg1.wrapping_add(self.x)),
+                address,
+                value
+            ),
             ADDRESS_MODE_INDIRECT => format!("(${:02X}{:02X}) = {:04X}", arg2, arg1, address),
-            ADDRESS_MODE_INDIRECT_INDEXED => format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", arg1, bus.read_16_bug(arg1 as u16), address, value),
+            ADDRESS_MODE_INDIRECT_INDEXED => format!(
+                "(${:02X}),Y = {:04X} @ {:04X} = {:02X}",
+                arg1,
+                bus.read_16_bug(arg1 as u16),
+                address,
+                value
+            ),
             ADDRESS_MODE_IMPLIED => "".to_owned(),
             ADDRESS_MODE_ZERO_PAGE => format!("${:02X} = {:02X}", arg1, value),
-            ADDRESS_MODE_ZERO_PAGE_X => format!("${:02X},X @ {:02X} = {:02X}", arg1, address, value),
-            ADDRESS_MODE_ZERO_PAGE_Y => format!("${:02X},Y @ {:02X} = {:02X}", arg1, address, value),
-            _ => format!("??? opcode {:02X} mode {}", opcode, address_mode)
+            ADDRESS_MODE_ZERO_PAGE_X => {
+                format!("${:02X},X @ {:02X} = {:02X}", arg1, address, value)
+            }
+            ADDRESS_MODE_ZERO_PAGE_Y => {
+                format!("${:02X},Y @ {:02X} = {:02X}", arg1, address, value)
+            }
+            _ => format!("??? opcode {:02X} mode {}", opcode, address_mode),
         };
 
         // Jump instructions don't show the value at the address.
@@ -412,9 +445,7 @@ impl CPU {
             }
 
             // STY - Store Y Register
-            0x84 | 0x8C | 0x94 => {
-                bus.write(address, self.y)
-            }
+            0x84 | 0x8C | 0x94 => bus.write(address, self.y),
 
             // DEY - Decrement Y Register
             0x88 => {
@@ -542,12 +573,18 @@ impl CPU {
             0x61 | 0x65 | 0x69 | 0x6D | 0x71 | 0x75 | 0x79 | 0x7D => {
                 let a = self.a;
                 let b: u8 = bus.read(address);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 self.a = a.wrapping_add(b).wrapping_add(c);
                 let _a = self.a;
                 self.set_zn_flag(_a);
-                self.flags.set(Flags::CARRY, a as i32 + b as i32 + c as i32 > 0xFF);
-                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
+                self.flags
+                    .set(Flags::CARRY, a as i32 + b as i32 + c as i32 > 0xFF);
+                self.flags
+                    .set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a) & 0x80 != 0);
             }
 
             // STA - Store Accumulator
@@ -556,7 +593,7 @@ impl CPU {
             }
 
             // LDA - Load Accumulator
-            0xA1 | 0xA5 | 0xA9 | 0xAD | 0xB1 | 0xB5 | 0xB9 | 0xBD  => {
+            0xA1 | 0xA5 | 0xA9 | 0xAD | 0xB1 | 0xB5 | 0xB9 | 0xBD => {
                 self.a = bus.read(address);
                 let a = self.a;
                 self.set_zn_flag(a);
@@ -573,12 +610,20 @@ impl CPU {
             0xE1 | 0xE5 | 0xE9 | 0xED | 0xF1 | 0xF5 | 0xF9 | 0xFD | 0xEB => {
                 let a = self.a;
                 let b: u8 = bus.read(address);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 self.a = a.wrapping_sub(b).wrapping_sub(1 - c);
                 let _a = self.a;
                 self.set_zn_flag(_a);
-                self.flags.set(Flags::CARRY, (a as i32) - (b as i32) - ((1 - c) as i32) >= 0);
-                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 != 0 && (a ^ _a) & 0x80 != 0);
+                self.flags.set(
+                    Flags::CARRY,
+                    (a as i32) - (b as i32) - ((1 - c) as i32) >= 0,
+                );
+                self.flags
+                    .set(Flags::OVERFLOW, (a ^ b) & 0x80 != 0 && (a ^ _a) & 0x80 != 0);
             }
 
             //// Read-Modify-Write Operations ////
@@ -601,7 +646,11 @@ impl CPU {
 
             // ROL - Rotate Left
             0x26 | 0x2A | 0x2E | 0x36 | 0x3E => {
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 if address_mode == ADDRESS_MODE_ACCUMULATOR {
                     self.flags.set(Flags::CARRY, ((self.a >> 7) & 1) > 0);
                     self.a = (self.a << 1) | c;
@@ -610,7 +659,7 @@ impl CPU {
                 } else {
                     let mut v = bus.read(address);
                     self.flags.set(Flags::CARRY, ((v >> 7) & 1) > 0);
-                    v  = (v << 1) | c;
+                    v = (v << 1) | c;
                     bus.write(address, v);
                     self.set_zn_flag(v);
                 }
@@ -634,7 +683,11 @@ impl CPU {
 
             // ROR - Rotate Right
             0x66 | 0x6A | 0x6E | 0x76 | 0x7E => {
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 if address_mode == ADDRESS_MODE_ACCUMULATOR {
                     self.flags.set(Flags::CARRY, (self.a & 1) > 0);
                     self.a = (self.a >> 1) | (c << 7);
@@ -643,7 +696,7 @@ impl CPU {
                 } else {
                     let mut v = bus.read(address);
                     self.flags.set(Flags::CARRY, (v & 1) > 0);
-                    v  = (v >> 1) | (c << 7);
+                    v = (v >> 1) | (c << 7);
                     bus.write(address, v);
                     self.set_zn_flag(v);
                 }
@@ -726,7 +779,11 @@ impl CPU {
             // RLA - ROL + AND
             0x23 | 0x27 | 0x2F | 0x33 | 0x37 | 0x3B | 0x3F => {
                 let mut b: u8 = bus.read(address);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 self.flags.set(Flags::CARRY, ((b >> 7) & 1) > 0);
                 b = (b << 1) | c;
                 self.a &= b;
@@ -750,23 +807,32 @@ impl CPU {
             0x63 | 0x67 | 0x6F | 0x73 | 0x77 | 0x7B | 0x7F => {
                 let a = self.a;
                 let mut b: u8 = bus.read(address);
-                let mut c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let mut c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 self.flags.set(Flags::CARRY, (b & 1) > 0);
                 b = (b >> 1) | (c << 7);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
-                let result: u16 =  a as u16 + b as u16 + c as u16;
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
+                let result: u16 = a as u16 + b as u16 + c as u16;
                 self.a = (result & 0xFF) as u8;
                 let _a = self.a;
-                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 == 0 && (a ^ _a as u8) & 0x80 != 0);
+                self.flags.set(
+                    Flags::OVERFLOW,
+                    (a ^ b) & 0x80 == 0 && (a ^ _a as u8) & 0x80 != 0,
+                );
                 self.flags.set(Flags::CARRY, result > 0x100);
                 self.set_zn_flag(_a);
                 bus.write(address, b);
             }
 
             // SAX - STA + STX
-            0x83 | 0x87 | 0x8F | 0x97 => {
-                bus.write(address, self.a & self.x)
-            }
+            0x83 | 0x87 | 0x8F | 0x97 => bus.write(address, self.a & self.x),
 
             // LAX - LDA + LDX
             0xA3 | 0xA7 | 0xAB | 0xAF | 0xB3 | 0xB7 | 0xBB | 0xBF => {
@@ -790,23 +856,27 @@ impl CPU {
                 let a = self.a;
                 let mut b: u8 = bus.read(address);
                 b = b.wrapping_add(1);
-                let c: u8 = if self.flags.intersects(Flags::CARRY) { 1 } else { 0 };
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
+                    1
+                } else {
+                    0
+                };
                 self.a = a.wrapping_sub(b).wrapping_sub(1 - c);
                 let _a = self.a;
                 self.set_zn_flag(_a);
-                self.flags.set(Flags::CARRY, (a as i32) - (b as i32) - ((1 - c) as i32) >= 0);
-                self.flags.set(Flags::OVERFLOW, (a ^ b) & 0x80 != 0 && (a ^ _a) & 0x80 != 0);
+                self.flags.set(
+                    Flags::CARRY,
+                    (a as i32) - (b as i32) - ((1 - c) as i32) >= 0,
+                );
+                self.flags
+                    .set(Flags::OVERFLOW, (a ^ b) & 0x80 != 0 && (a ^ _a) & 0x80 != 0);
                 bus.write(address, b);
             }
 
             // NOP - No Operation
-            0x04 | 0x0C | 0x14 | 0x1A | 0x1C |
-            0x34 | 0x3A | 0x3C |
-            0x44 | 0x54 | 0x5A | 0x5C |
-            0x64 | 0x74 | 0x7A | 0x7C |
-            0x80 | 0x82 | 0x89 |
-            0xC2 | 0xD4 | 0xDA | 0xDC |
-            0xE2 | 0xEA | 0xF4 | 0xFA | 0xFC => {}
+            0x04 | 0x0C | 0x14 | 0x1A | 0x1C | 0x34 | 0x3A | 0x3C | 0x44 | 0x54 | 0x5A | 0x5C
+            | 0x64 | 0x74 | 0x7A | 0x7C | 0x80 | 0x82 | 0x89 | 0xC2 | 0xD4 | 0xDA | 0xDC | 0xE2
+            | 0xEA | 0xF4 | 0xFA | 0xFC => {}
 
             _ => {
                 println!(
@@ -815,6 +885,6 @@ impl CPU {
                 );
             }
         }
-        return (self.cycles - old_cycles) as u32
+        return (self.cycles - old_cycles) as u32;
     }
 }

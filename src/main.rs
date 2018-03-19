@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate bitflags;
 extern crate minifb;
+
 mod cpu;
 mod ppu;
 
@@ -13,7 +14,6 @@ use cpu::CPU;
 use ppu::PPU;
 
 //use minifb::{Key, Window, WindowOptions};
-
 
 //const WIDTH: usize = 640;
 //const HEIGHT: usize = 360;
@@ -30,14 +30,14 @@ pub trait BitReader {
 impl BitReader for File {
     fn read_u8(&mut self) -> Result<u8, io::Error> {
         let mut buffer = [0; 1];
-        try!(self.read(&mut buffer));
+        self.read(&mut buffer)?;
         Ok(buffer[0])
     }
 
     fn read_u32_be(&mut self) -> Result<u32, io::Error> {
         let mut buffer = [0; 4];
 
-        try!(self.read(&mut buffer));
+        self.read(&mut buffer)?;
 
         Ok(
             buffer[3] as u32 + ((buffer[2] as u32) << 8) + ((buffer[1] as u32) << 16)
@@ -48,7 +48,7 @@ impl BitReader for File {
     fn read_u32_le(&mut self) -> Result<u32, io::Error> {
         let mut buffer = [0; 4];
 
-        try!(self.read(&mut buffer));
+        self.read(&mut buffer)?;
 
         Ok(
             buffer[0] as u32 + ((buffer[1] as u32) << 8) + ((buffer[2] as u32) << 16)
@@ -131,12 +131,13 @@ pub struct Bus {
 impl Bus {
     pub fn new(cartridge: Cartridge, ram: Vec<u8>) -> Bus {
         Bus {
-            cartridge, ram,
+            cartridge,
+            ram,
             ppu_name_table: [0; 2048],
             ppu_palette: [0; 32],
             ppu_oam: [0; 256],
-            ppu_front_buffer: Vec::with_capacity(BUFFER_WIDTH * BUFFER_HEIGHT),
-            ppu_back_buffer: Vec::with_capacity(BUFFER_WIDTH * BUFFER_HEIGHT),
+            ppu_front_buffer: vec![0; BUFFER_WIDTH * BUFFER_HEIGHT],
+            ppu_back_buffer: vec![0; BUFFER_WIDTH * BUFFER_HEIGHT],
         }
     }
 
@@ -188,10 +189,8 @@ impl Bus {
                 let mode = self.cartridge.mirror_mode;
                 // FIXME: this is wrong
                 self.ppu_name_table[address as usize]
-            },
-            0x3F00...0x4000 => {
-                self.ppu_palette[(address % 32) as usize]
             }
+            0x3F00...0x4000 => self.ppu_palette[(address % 32) as usize],
             _ => panic!("Invalid bus PPU read at address {}", address),
         }
     }
@@ -223,9 +222,8 @@ impl Console {
 }
 
 fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
-    let mut fp = try!(File::open(path));
-
-    let magic = try!(fp.read_u32_be());
+    let mut fp = File::open(path)?;
+    let magic = fp.read_u32_be()?;
     if magic != 0x4e45531a {
         panic!(
             "Not an INES ROM file: magic number mismatch (got: 0x{:08X})",
@@ -233,13 +231,13 @@ fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
         );
     }
 
-    let prg_rom_size = try!(fp.read_u8()) as usize;
-    let chr_rom_size = try!(fp.read_u8()) as usize;
-    let flags_1 = try!(fp.read_u8());
-    let flags_2 = try!(fp.read_u8());
-    let prg_ram_size = try!(fp.read_u8());
+    let prg_rom_size = fp.read_u8()? as usize;
+    let chr_rom_size = fp.read_u8()? as usize;
+    let flags_1 = fp.read_u8()?;
+    let flags_2 = fp.read_u8()?;
+    let prg_ram_size = fp.read_u8()?;
     // Skip padding
-    try!(fp.seek(SeekFrom::Current(7)));
+    fp.seek(SeekFrom::Current(7))?;
 
     println!("prg_rom_size: {}", prg_rom_size);
     println!("chr_rom_size: {}", chr_rom_size);
@@ -258,18 +256,18 @@ fn read_rom(path: &str) -> Result<Cartridge, io::Error> {
     // Read trainer data (need to skip this)
     if flags_1 & 4 == 4 {
         let mut trainer = [0; 0x512];
-        try!(fp.read(&mut trainer));
+        fp.read(&mut trainer)?;
     }
 
     // Read PRG ROM banks
     let mut prg: Vec<u8> = Vec::new();
     prg.resize(prg_rom_size * 16384, 0);
-    try!(fp.read(&mut prg));
+    fp.read(&mut prg)?;
 
     // Read CHR ROM banks
     let mut chr: Vec<u8> = Vec::new();
     chr.resize(chr_rom_size * 8192, 0);
-    try!(fp.read(&mut chr));
+    fp.read(&mut chr)?;
 
     println!("prg len {}", prg.len());
     println!("chr len {}", chr.len());
@@ -397,9 +395,13 @@ mod tests {
 
         let cpu = CPU::new();
 
-        let bus = Bus { cartridge, ram };
+        let bus = Bus::new(cartridge, ram);
 
-        let mut console = Console { cpu, bus };
+        let mut console = Console {
+            cpu,
+            ppu: PPU::new(),
+            bus,
+        };
 
         console.reset();
         // This is specifically for the nestest log.
@@ -417,7 +419,9 @@ mod tests {
             let mut expected = String::new();
             reader.read_line(&mut expected).unwrap();
             let expected = expected.trim_right().to_owned();
-            if expected.len() == 0 { break; }
+            if expected.len() == 0 {
+                break;
+            }
             let actual = console.log_string();
             assert_eq!(expected, actual);
             //println!("{}", expected);
