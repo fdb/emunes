@@ -1,3 +1,16 @@
 # NES Emulator in Rust
 
-    cargo run
+[![Build Status](https://travis-ci.org/fdb/emunes.svg?branch=master)](https://travis-ci.org/fdb/emunes)
+
+To run:
+
+    cargo run <romfile.nes>
+
+To test the "golden master" [nestest rom](http://www.qmtpro.com/~nes/misc/nestest.txt):
+
+    cargo test
+
+## Credits
+
+- Frederik De Bleser @fdb
+- Michael Smith @michaelshmitty
