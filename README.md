@@ -1,5 +1,9 @@
 # NES Emulator in Rust
 
+🚧 UNDER CONSTRUCTION 🚧
+
+We're building this out in the open. The CPU emulator works but we haven't implemented graphics or audio yet.
+
 [![Build Status](https://travis-ci.org/fdb/emunes.svg?branch=master)](https://travis-ci.org/fdb/emunes)
 
 To run:
