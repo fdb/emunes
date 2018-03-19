@@ -12,5 +12,6 @@ To test the "golden master" [nestest rom](http://www.qmtpro.com/~nes/misc/nestes
 
 ## Credits
 
-- Frederik De Bleser @fdb
-- Michael Smith @michaelshmitty
+- [Frederik De Bleser](https://github.com/fdb)
+- [Michael Smith](https://github.com/michaelshmitty)
+
