@@ -121,11 +121,13 @@ pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
 pub struct Bus {
     pub cartridge: Cartridge,
     pub ram: Vec<u8>,
+    pub apu_registers: [u8; 22],
     pub ppu_name_table: [u8; 2048],
     pub ppu_palette: [u8; 32],
     pub ppu_oam: [u8; 256],
     pub ppu_front_buffer: Vec<u32>,
     pub ppu_back_buffer: Vec<u32>,
+
 }
 
 impl Bus {
@@ -133,6 +135,7 @@ impl Bus {
         Bus {
             cartridge,
             ram,
+            apu_registers: [0; 22],
             ppu_name_table: [0; 2048],
             ppu_palette: [0; 32],
             ppu_oam: [0; 256],
@@ -144,8 +147,8 @@ impl Bus {
     pub fn read(&self, address: u16) -> u8 {
         match address {
             0x0000...0x1FFF => self.ram[(address % 0x2000) as usize],
-            0x2000...0x4000 => 0xCC, // TODO: self.ppu.read_register(0x2000 + address % 8)
-            0x4004...0x4013 => 0xFF, // TODO: mirrored memory?
+            0x2000...0x3FFF => 0xCC, // TODO: self.ppu.read_register(0x2000 + address % 8)
+            0x4000...0x4013 => 0xCC, // TODO: read from APU registers
             0x4014 => 0xCC,          // TODO: self.ppu.read_register(address)
             0x4015 => 0xFF,          // TODO: self.apu.read_register(address)
             0x4016 => 0xFF,          // TODO: self.controller1.read()
@@ -168,7 +171,14 @@ impl Bus {
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
-        self.ram[(address % 2048) as usize] = value
+        match address {
+            0x0000...0x1FFF => { self.ram[(address % 2048) as usize] = value },
+            0x4000...0x4013 | 0x4015 => {
+                //println!("APU {:04X} ({}) = {}", address, (address - 0x4000), value);
+                self.apu_registers[(address - 0x4000) as usize] = value;
+            },
+            _ => {}
+        }
     }
 
     pub fn mapper_read(&self, address: u16) -> u8 {
@@ -318,7 +328,7 @@ fn main() {
     console.reset();
 
     loop {
-        println!("{}", console.log_string());
+        //println!("{}", console.log_string());
         console.step();
     }
 
