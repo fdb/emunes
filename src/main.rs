@@ -331,7 +331,7 @@ fn main() {
     let mut x_off = 0;
     let mut y_off = 0;
     let mut chr_off = 0;
-    while chr_off < 1024 {
+    while chr_off < 8192 {
         for y in 0..8 {
             for x in 0..8 {
                 let c = *(&console.bus.cartridge.chr[y * 8 + x + chr_off]) as u32;
