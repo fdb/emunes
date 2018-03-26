@@ -13,12 +13,13 @@ use std::env;
 use cpu::CPU;
 use ppu::PPU;
 
-//use minifb::{Key, Window, WindowOptions};
+use minifb::{Key, Window, WindowOptions};
 
-//const WIDTH: usize = 640;
-//const HEIGHT: usize = 360;
 const BUFFER_WIDTH: usize = 256;
 const BUFFER_HEIGHT: usize = 240;
+const BUFFER_SCALE: usize = 3;
+const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
+const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
 
 pub trait BitReader {
     fn read_u8(&mut self) -> Result<u8, io::Error>;
@@ -125,9 +126,7 @@ pub struct Bus {
     pub ppu_name_table: [u8; 2048],
     pub ppu_palette: [u8; 32],
     pub ppu_oam: [u8; 256],
-    pub ppu_front_buffer: Vec<u32>,
-    pub ppu_back_buffer: Vec<u32>,
-
+    pub ppu_pixels: Vec<u32>,
 }
 
 impl Bus {
@@ -139,8 +138,7 @@ impl Bus {
             ppu_name_table: [0; 2048],
             ppu_palette: [0; 32],
             ppu_oam: [0; 256],
-            ppu_front_buffer: vec![0; BUFFER_WIDTH * BUFFER_HEIGHT],
-            ppu_back_buffer: vec![0; BUFFER_WIDTH * BUFFER_HEIGHT],
+            ppu_pixels: vec![0; BUFFER_WIDTH * BUFFER_HEIGHT],
         }
     }
 
@@ -172,11 +170,11 @@ impl Bus {
 
     pub fn write(&mut self, address: u16, value: u8) {
         match address {
-            0x0000...0x1FFF => { self.ram[(address % 2048) as usize] = value },
+            0x0000...0x1FFF => self.ram[(address % 2048) as usize] = value,
             0x4000...0x4013 | 0x4015 => {
                 //println!("APU {:04X} ({}) = {}", address, (address - 0x4000), value);
                 self.apu_registers[(address - 0x4000) as usize] = value;
-            },
+            }
             _ => {}
         }
     }
@@ -323,70 +321,104 @@ fn main() {
 
     let bus = Bus::new(cartridge, ram);
 
+
     let mut console = Console { cpu, ppu, bus };
 
     console.reset();
+    let mut buffer: Vec<u32> = vec![0; WINDOW_WIDTH * WINDOW_HEIGHT];
 
-    loop {
-        //println!("{}", console.log_string());
-        console.step();
+
+    let mut x_off = 0;
+    let mut y_off = 0;
+    let mut chr_off = 0;
+    while chr_off < 1024 {
+        for y in 0..8 {
+            for x in 0..8 {
+                let c = *(&console.bus.cartridge.chr[y * 8 + x + chr_off]) as u32;
+                console.bus.ppu_pixels[((y_off + y) * BUFFER_WIDTH) + x + x_off]= (0xFF << 24) | (c << 16) | (c << 8) | c;
+            }
+        }
+        chr_off += 64;
+        x_off += 10;
+        if x_off > BUFFER_WIDTH - 10 {
+            x_off = 0;
+            y_off += 10;
+        }
     }
 
-    // let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    loop {
 
-    // let mut window = Window::new(
-    //     "Test - ESC to exit",
-    //     WIDTH,
-    //     HEIGHT,
-    //     WindowOptions::default(),
-    // ).unwrap_or_else(|e| {
-    //     panic!("{}", e);
-    // });
+        let mut window = Window::new(
+            "Emunes",
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+            WindowOptions::default(),
+        ).unwrap_or_else(|e| {
+            panic!("{}", e);
+        });
 
-    // while window.is_open() && !window.is_key_down(Key::Escape) {
-    //     let mut v = 0;
-    //     let mut x = 0;
-    //     let mut y = 0;
-    //     let offx = 0;
-    //     let offy = 0;
+        while window.is_open() && !window.is_key_down(Key::Escape) {
+            console.step();
+            //println!("{}", console.log_string());
+            for y in 0..BUFFER_HEIGHT {
+                for x in 0..BUFFER_WIDTH {
+                    {
+                        let c = &console.bus.ppu_pixels[(y * BUFFER_WIDTH) + x];
+                        for dy in 0..BUFFER_SCALE {
+                            for dx in 0..BUFFER_SCALE {
+                                buffer[(y * BUFFER_SCALE + dy) * WINDOW_WIDTH
+                                           + (x * BUFFER_SCALE + dx)] = *c;
+                            }
+                        }
+                    }
+                }
+            }
+            window.update_with_buffer(&buffer).unwrap();
+        }
 
-    //     while v < console.bus.cartridge.chr.len() {
-    //         x += 1;
-    //         if x >= WIDTH {
-    //             x = 0;
-    //             y += 1;
-    //         }
-    //         // if x > 8 {
-    //         //     x = 0;
-    //         //     y += 1;
-    //         //     if y > 8 {
-    //         //         offx += 16;
-    //         //         y = 0;
-    //         //         offy += 16;
-    //         //         if offy > 32 {break;}
-    //         //     }
-    //         // }
-    //         let c = console.bus.cartridge.chr[v] as u32;
-    //         buffer[(y + offy) * WIDTH + (x + offx)] = c; //  (c << 24) | (c << 16) | (c << 8) | c;
-    //         buffer[(y + offy) * WIDTH + (x + offx)] = (c << 24) | (c << 16) | (c << 8) | c;
-    //         //buffer[(y + offy) * WIDTH + (x + offx)] =  (c << 24) | (c << 16) | (c << 8) | c;
-    //         v += 1;
-    //     }
+        //     let mut v = 0;
+        //     let mut x = 0;
+        //     let mut y = 0;
+        //     let offx = 0;
+        //     let offy = 0;
 
-    //     // let mut x = 0;
-    //     // for i in buffer.iter_mut() {
-    //     //     let c = vram[x % 0x2000] as u32;
-    //     //     *i =  (c << 24) | (c << 16) | (c << 8) | c;
-    //     //     //*i = (c << 8) | c;
-    //     //     //*i = c;
-    //     //     //*i = 0; // write something more funny here!
-    //     //     x += 1;
-    //     // }
+        //     while v < console.bus.cartridge.chr.len() {
+        //         x += 1;
+        //         if x >= WIDTH {
+        //             x = 0;
+        //             y += 1;
+        //         }
+        //         // if x > 8 {
+        //         //     x = 0;
+        //         //     y += 1;
+        //         //     if y > 8 {
+        //         //         offx += 16;
+        //         //         y = 0;
+        //         //         offy += 16;
+        //         //         if offy > 32 {break;}
+        //         //     }
+        //         // }
+        //         let c = console.bus.cartridge.chr[v] as u32;
+        //         buffer[(y + offy) * WIDTH + (x + offx)] = c; //  (c << 24) | (c << 16) | (c << 8) | c;
+        //         buffer[(y + offy) * WIDTH + (x + offx)] = (c << 24) | (c << 16) | (c << 8) | c;
+        //         //buffer[(y + offy) * WIDTH + (x + offx)] =  (c << 24) | (c << 16) | (c << 8) | c;
+        //         v += 1;
+        //     }
 
-    //     // We unwrap here as we want this code to exit if it fails.
-    //     // Real applications may want to handle this in a different way
-    //     window.update_with_buffer(&buffer).unwrap();
-    // }
+        //     // let mut x = 0;
+        //     // for i in buffer.iter_mut() {
+        //     //     let c = vram[x % 0x2000] as u32;
+        //     //     *i =  (c << 24) | (c << 16) | (c << 8) | c;
+        //     //     //*i = (c << 8) | c;
+        //     //     //*i = c;
+        //     //     //*i = 0; // write something more funny here!
+        //     //     x += 1;
+        //     // }
+
+        //     // We unwrap here as we want this code to exit if it fails.
+        //     // Real applications may want to handle this in a different way
+
+    }
 }
 
 #[cfg(test)]

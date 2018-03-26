@@ -68,7 +68,7 @@ impl PPU {
         let color = background;
         let c = PALETTE[self.read_palette(color as u16 % 64) as usize];
         println!("render_pixel {} {} = {}", x, y, c);
-        bus.ppu_back_buffer[((y * 256) + x) as usize] = c;
+        bus.ppu_pixels[((y * 256) + x) as usize] = c;
     }
 
     pub fn tick(&mut self) {
