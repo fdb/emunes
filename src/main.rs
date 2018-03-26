@@ -1,6 +1,13 @@
 #[macro_use]
 extern crate bitflags;
-extern crate minifb;
+extern crate sdl2;
+
+use std::mem;
+
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::event::Event;
+use sdl2::rect::Rect;
+use sdl2::keyboard::Keycode;
 
 mod cpu;
 mod ppu;
@@ -13,7 +20,7 @@ use std::env;
 use cpu::CPU;
 use ppu::PPU;
 
-use minifb::{Key, Window, WindowOptions};
+//use minifb::{Key, Window, WindowOptions};
 
 const BUFFER_WIDTH: usize = 256;
 const BUFFER_HEIGHT: usize = 240;
@@ -321,12 +328,10 @@ fn main() {
 
     let bus = Bus::new(cartridge, ram);
 
-
     let mut console = Console { cpu, ppu, bus };
 
     console.reset();
     let mut buffer: Vec<u32> = vec![0; WINDOW_WIDTH * WINDOW_HEIGHT];
-
 
     let mut x_off = 0;
     let mut y_off = 0;
@@ -335,7 +340,8 @@ fn main() {
         for y in 0..8 {
             for x in 0..8 {
                 let c = *(&console.bus.cartridge.chr[y * 8 + x + chr_off]) as u32;
-                console.bus.ppu_pixels[((y_off + y) * BUFFER_WIDTH) + x + x_off]= (0xFF << 24) | (c << 16) | (c << 8) | c;
+                console.bus.ppu_pixels[((y_off + y) * BUFFER_WIDTH) + x + x_off] =
+                    (0xFF << 24) | (c << 16) | (c << 8) | c;
             }
         }
         chr_off += 64;
@@ -346,79 +352,108 @@ fn main() {
         }
     }
 
-    loop {
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+    let window = video_subsystem
+        .window("Emunes", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
+        .position_centered()
+        .build()
+        .unwrap();
 
-        let mut window = Window::new(
-            "Emunes",
-            WINDOW_WIDTH,
-            WINDOW_HEIGHT,
-            WindowOptions::default(),
-        ).unwrap_or_else(|e| {
-            panic!("{}", e);
-        });
-
-        while window.is_open() && !window.is_key_down(Key::Escape) {
-            console.step();
-            //println!("{}", console.log_string());
-            for y in 0..BUFFER_HEIGHT {
-                for x in 0..BUFFER_WIDTH {
-                    {
-                        let c = &console.bus.ppu_pixels[(y * BUFFER_WIDTH) + x];
-                        for dy in 0..BUFFER_SCALE {
-                            for dx in 0..BUFFER_SCALE {
-                                buffer[(y * BUFFER_SCALE + dy) * WINDOW_WIDTH
-                                           + (x * BUFFER_SCALE + dx)] = *c;
-                            }
-                        }
-                    }
-                }
+    let mut canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator
+        .create_texture_streaming(
+            PixelFormatEnum::ARGB8888,
+            BUFFER_WIDTH as u32,
+            BUFFER_HEIGHT as u32,
+        )
+        .unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    'running: loop {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                _ => {}
             }
-            window.update_with_buffer(&buffer).unwrap();
         }
 
-        //     let mut v = 0;
-        //     let mut x = 0;
-        //     let mut y = 0;
-        //     let offx = 0;
-        //     let offy = 0;
+        // The rest of the game loop goes here...
+        console.step();
 
-        //     while v < console.bus.cartridge.chr.len() {
-        //         x += 1;
-        //         if x >= WIDTH {
-        //             x = 0;
-        //             y += 1;
-        //         }
-        //         // if x > 8 {
-        //         //     x = 0;
-        //         //     y += 1;
-        //         //     if y > 8 {
-        //         //         offx += 16;
-        //         //         y = 0;
-        //         //         offy += 16;
-        //         //         if offy > 32 {break;}
-        //         //     }
-        //         // }
-        //         let c = console.bus.cartridge.chr[v] as u32;
-        //         buffer[(y + offy) * WIDTH + (x + offx)] = c; //  (c << 24) | (c << 16) | (c << 8) | c;
-        //         buffer[(y + offy) * WIDTH + (x + offx)] = (c << 24) | (c << 16) | (c << 8) | c;
-        //         //buffer[(y + offy) * WIDTH + (x + offx)] =  (c << 24) | (c << 16) | (c << 8) | c;
-        //         v += 1;
-        //     }
+        unsafe {
+            let _ = texture.update(
+                None,
+                mem::transmute(console.bus.ppu_pixels.as_slice()),
+                BUFFER_WIDTH * 4,
+            );
+        }
 
-        //     // let mut x = 0;
-        //     // for i in buffer.iter_mut() {
-        //     //     let c = vram[x % 0x2000] as u32;
-        //     //     *i =  (c << 24) | (c << 16) | (c << 8) | c;
-        //     //     //*i = (c << 8) | c;
-        //     //     //*i = c;
-        //     //     //*i = 0; // write something more funny here!
-        //     //     x += 1;
-        //     // }
-
-        //     // We unwrap here as we want this code to exit if it fails.
-        //     // Real applications may want to handle this in a different way
-
+        canvas.clear();
+        canvas
+            .copy(
+                &texture,
+                None,
+                Some(Rect::new(0, 0, WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)),
+            )
+            .unwrap();
+        canvas.present();
     }
+    // for y in 0..256 {
+    //     for x in 0..256 {
+    //         let offset = y*pitch + x*3;
+    //         buffer[offset] = x as u8;
+    //         buffer[offset + 1] = y as u8;
+    //         buffer[offset + 2] = 0;
+    //     }
+    // }}).unwrap();
+    //println!("{}", console.log_string());
+    //window.update_with_buffer(&buffer).unwrap();
+    //     let mut v = 0;
+    //     let mut x = 0;
+    //     let mut y = 0;
+    //     let offx = 0;
+    //     let offy = 0;
+
+    //     while v < console.bus.cartridge.chr.len() {
+    //         x += 1;
+    //         if x >= WIDTH {
+    //             x = 0;
+    //             y += 1;
+    //         }
+    //         // if x > 8 {
+    //         //     x = 0;
+    //         //     y += 1;
+    //         //     if y > 8 {
+    //         //         offx += 16;
+    //         //         y = 0;
+    //         //         offy += 16;
+    //         //         if offy > 32 {break;}
+    //         //     }
+    //         // }
+    //         let c = console.bus.cartridge.chr[v] as u32;
+    //         buffer[(y + offy) * WIDTH + (x + offx)] = c; //  (c << 24) | (c << 16) | (c << 8) | c;
+    //         buffer[(y + offy) * WIDTH + (x + offx)] = (c << 24) | (c << 16) | (c << 8) | c;
+    //         //buffer[(y + offy) * WIDTH + (x + offx)] =  (c << 24) | (c << 16) | (c << 8) | c;
+    //         v += 1;
+    //     }
+
+    //     // let mut x = 0;
+    //     // for i in buffer.iter_mut() {
+    //     //     let c = vram[x % 0x2000] as u32;
+    //     //     *i =  (c << 24) | (c << 16) | (c << 8) | c;
+    //     //     //*i = (c << 8) | c;
+    //     //     //*i = c;
+    //     //     //*i = 0; // write something more funny here!
+    //     //     x += 1;
+    //     // }
+
+    //     // We unwrap here as we want this code to exit if it fails.
+    //     // Real applications may want to handle this in a different way
 }
 
 #[cfg(test)]

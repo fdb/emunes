@@ -5,4 +5,4 @@ authors = ["Frederik De Bleser <frederik@debleser.be>"]
 
 [dependencies]
 bitflags = "1.0.1"
-minifb = "0.10.3"
+sdl2 = "0.31.0"
