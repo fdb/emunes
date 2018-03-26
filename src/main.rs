@@ -148,7 +148,7 @@ impl Bus {
         match address {
             0x0000...0x1FFF => self.ram[(address % 0x2000) as usize],
             0x2000...0x3FFF => 0xCC, // TODO: self.ppu.read_register(0x2000 + address % 8)
-            0x4000...0x4013 => 0xCC, // TODO: read from APU registers
+            0x4000...0x4013 => 0xFF, // TODO: read from APU registers
             0x4014 => 0xCC,          // TODO: self.ppu.read_register(address)
             0x4015 => 0xFF,          // TODO: self.apu.read_register(address)
             0x4016 => 0xFF,          // TODO: self.controller1.read()
