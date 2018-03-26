@@ -385,13 +385,11 @@ fn main() {
         // The rest of the game loop goes here...
         console.step();
 
-        unsafe {
-            let _ = texture.update(
-                None,
-                mem::transmute(console.bus.ppu_pixels.as_slice()),
-                BUFFER_WIDTH * 4,
-            );
-        }
+        let _ = texture.update(
+            None,
+            unsafe { mem::transmute(console.bus.ppu_pixels.as_slice()) },
+            BUFFER_WIDTH * 4,
+        );
 
         canvas.clear();
         canvas
