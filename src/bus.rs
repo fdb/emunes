@@ -1,9 +1,7 @@
 use cartridge::Cartridge;
 
-// FIXME(m): Unify these with the constants in main.rs and get rid of this ugly hack
-// to stop compiler from complaining with 'cannot find value `BUFFER_WIDTH` in this scope'
-const BUFFER_WIDTH: usize = 256;
-const BUFFER_HEIGHT: usize = 240;
+pub const BUFFER_WIDTH: usize = 256;
+pub const BUFFER_HEIGHT: usize = 240;
 
 pub struct Bus {
     pub cartridge: Cartridge,

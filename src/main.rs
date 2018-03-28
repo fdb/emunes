@@ -21,13 +21,11 @@ use std::env;
 
 use cpu::CPU;
 use ppu::PPU;
-use bus::Bus;
+use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
 use cartridge::Cartridge;
 
 //use minifb::{Key, Window, WindowOptions};
 
-const BUFFER_WIDTH: usize = 256;
-const BUFFER_HEIGHT: usize = 240;
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
 const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
