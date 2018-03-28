@@ -8,11 +8,13 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::rect::Rect;
 use sdl2::keyboard::Keycode;
+use sdl2::audio::AudioSpecDesired;
 
 mod cpu;
 mod ppu;
 mod bus;
 mod cartridge;
+mod apu;
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -23,6 +25,7 @@ use cpu::CPU;
 use ppu::PPU;
 use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
 use cartridge::Cartridge;
+use apu::{APU, AUDIO_SAMPLE_RATE};
 
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
@@ -120,6 +123,7 @@ pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
 pub struct Console {
     pub cpu: CPU,
     pub ppu: PPU,
+    pub apu: APU,
     pub bus: Bus,
 }
 
@@ -138,6 +142,7 @@ impl Console {
         for _ in 0..ppu_cycles {
             self.ppu.step(&mut self.bus);
         }
+        self.apu.step(&mut self.bus);
         cpu_cycles
     }
 }
@@ -231,10 +236,11 @@ fn main() {
 
     let cpu = CPU::new();
     let ppu = PPU::new();
+    let apu = APU::new();
 
     let bus = Bus::new(cartridge, ram);
 
-    let mut console = Console { cpu, ppu, bus };
+    let mut console = Console { cpu, ppu, apu, bus };
 
     console.reset();
     let mut buffer: Vec<u32> = vec![0; WINDOW_WIDTH * WINDOW_HEIGHT];
@@ -258,7 +264,10 @@ fn main() {
         }
     }
 
+    // Initialize SDL
     let sdl_context = sdl2::init().unwrap();
+
+    // Initialize SDL Video
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
         .window("Emunes", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
@@ -275,6 +284,17 @@ fn main() {
             BUFFER_HEIGHT as u32,
         )
         .unwrap();
+
+    // Initialize SDL Audio
+    let audio_subsystem = sdl_context.audio().unwrap();
+    let desired_spec = AudioSpecDesired {
+        freq: Some(AUDIO_SAMPLE_RATE as i32),
+        channels: Some(2),
+        samples: Some(4)
+    };
+
+    let device = audio_subsystem.open_queue::<i16, _>(None, &desired_spec).unwrap();
+
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -291,6 +311,7 @@ fn main() {
         // The rest of the game loop goes here...
         console.step();
 
+        // Output video
         let _ = texture.update(
             None,
             unsafe { mem::transmute(console.bus.ppu_pixels.as_slice()) },
@@ -306,6 +327,11 @@ fn main() {
             )
             .unwrap();
         canvas.present();
+
+        // Output audio
+        device.queue(&console.bus.apu_buffer);
+        device.resume();
+
     }
     // for y in 0..256 {
     //     for x in 0..256 {
@@ -381,6 +407,7 @@ mod tests {
         let mut console = Console {
             cpu,
             ppu: PPU::new(),
+            apu: APU::new(),
             bus,
         };
 
