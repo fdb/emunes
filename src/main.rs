@@ -11,6 +11,7 @@ use sdl2::keyboard::Keycode;
 
 mod cpu;
 mod ppu;
+mod cartridge;
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -19,6 +20,7 @@ use std::env;
 
 use cpu::CPU;
 use ppu::PPU;
+use cartridge::Cartridge;
 
 //use minifb::{Key, Window, WindowOptions};
 
@@ -72,15 +74,6 @@ pub struct RomHeader {
     pub control1: u8,
     pub control2: u8,
     pub ram_count: u8,
-}
-
-pub struct Cartridge {
-    pub prg: Vec<u8>,
-    pub chr: Vec<u8>,
-    pub sram: Vec<u8>,
-    pub mapper_type: u8,
-    pub mirror_mode: u8,
-    pub battery_present: bool,
 }
 
 pub trait Mapper {
