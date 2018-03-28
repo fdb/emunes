@@ -1,4 +1,4 @@
-use Bus;
+use bus::Bus;
 
 const ADDRESS_MODE_ABSOLUTE: u8 = 1;
 const ADDRESS_MODE_ABSOLUTE_X: u8 = 2;
