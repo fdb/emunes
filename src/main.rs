@@ -25,11 +25,13 @@ use cpu::CPU;
 use ppu::PPU;
 use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
 use cartridge::Cartridge;
-use apu::{APU, AUDIO_SAMPLE_RATE};
+use apu::APU;
 
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
 const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
+
+const AUDIO_SAMPLE_RATE: u32 = 44_100;
 
 pub trait BitReader {
     fn read_u8(&mut self) -> Result<u8, io::Error>;
@@ -236,7 +238,7 @@ fn main() {
 
     let cpu = CPU::new();
     let ppu = PPU::new();
-    let apu = APU::new();
+    let apu = APU::new(AUDIO_SAMPLE_RATE);
 
     let bus = Bus::new(cartridge, ram);
 
