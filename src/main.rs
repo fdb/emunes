@@ -24,8 +24,6 @@ use ppu::PPU;
 use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
 use cartridge::Cartridge;
 
-//use minifb::{Key, Window, WindowOptions};
-
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
 const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
