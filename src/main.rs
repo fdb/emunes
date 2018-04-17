@@ -22,6 +22,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
 use std::env;
+use std::{thread, time};
 
 use cpu::CPU;
 use ppu::PPU;
@@ -32,6 +33,8 @@ use apu::APU;
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
 const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
+const TARGET_FRAME_RATE: u32 = 60;
+const MS_PER_FRAME: u32 = 1_000 / TARGET_FRAME_RATE;
 
 const AUDIO_SAMPLE_RATE: u32 = 44_100;
 
@@ -394,6 +397,28 @@ fn main() {
         device.queue(&console.bus.apu_buffer);
         device.resume();
 
+        // Calculate framerate
+        // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
+        let frame_end_time = timer.ticks() as i32;
+        if last_frame_end_time < (frame_end_time - 1_000) {
+            last_frame_end_time = frame_end_time;
+            current_fps = frames_elapsed;
+            frames_elapsed = 0;
+        }
+        frames_elapsed = frames_elapsed + 1;
+
+        // Cap framerate
+        let frame_ms_elapsed = frame_end_time - frame_start_time as i32;
+        if frame_ms_elapsed < MS_PER_FRAME as i32 {
+            // Wait remaining time
+            let remaining_time = time::Duration::from_millis(MS_PER_FRAME as u64 -
+                                                             frame_ms_elapsed as u64);
+            thread::sleep(remaining_time);
+        } else {
+            // NOTE(m): We missed a frame. I.e. this frame took longer than the time
+            // we had at this refresh rate. Do we care?
+            // println!("Missed a frame!");
+        }
     }
     // for y in 0..256 {
     //     for x in 0..256 {
