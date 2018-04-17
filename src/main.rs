@@ -316,9 +316,13 @@ fn main() {
     let mut current_fps = 0;
     let mut frames_elapsed = 0;
 
+    // Declare variables for calculating CPS (cycles per second)
+    let mut current_cps = 0;
+
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
         let mut frame_start_time = timer.ticks();
+        let mut frame_start_cycles = console.cpu.cycles;
 
         for event in event_pump.poll_iter() {
             match event {
@@ -373,12 +377,9 @@ fn main() {
         canvas.copy(&osd1_texture, None, Some(osd1_target_rect)).unwrap();
 
         // OSD line 2
-        let cpu_cycles = console.cpu.cycles;
-        let ppu_cycle = console.ppu.cycle;
-        let osd2_string = format!("FPS: {:?} | CPU: {} | PPU: {}",
+        let osd2_string = format!("FPS: {:?} | CPS: {}",
                                   current_fps,
-                                  cpu_cycles,
-                                  ppu_cycle);
+                                  current_cps);
         let osd2_surface = font.render(&osd2_string)
                                .solid(Color::RGBA(255, 0, 0, 255))
                                .unwrap();
@@ -397,6 +398,7 @@ fn main() {
         device.queue(&console.bus.apu_buffer);
         device.resume();
 
+
         // Calculate framerate
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
         let frame_end_time = timer.ticks() as i32;
@@ -404,6 +406,10 @@ fn main() {
             last_frame_end_time = frame_end_time;
             current_fps = frames_elapsed;
             frames_elapsed = 0;
+
+            // Calculate Cycles Per Second
+            let frame_end_cycles = console.cpu.cycles;
+            current_cps = (frame_end_cycles - frame_start_cycles) * current_fps;
         }
         frames_elapsed = frames_elapsed + 1;
 
