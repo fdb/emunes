@@ -494,7 +494,7 @@ mod tests {
         let mut console = Console {
             cpu,
             ppu: PPU::new(),
-            apu: APU::new(),
+            apu: APU::new(AUDIO_SAMPLE_RATE),
             bus,
         };
 
