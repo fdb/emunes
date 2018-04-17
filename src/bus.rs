@@ -11,6 +11,7 @@ pub struct Bus {
     pub ppu_palette: [u8; 32],
     pub ppu_oam: [u8; 256],
     pub ppu_pixels: Vec<u32>,
+    pub apu_buffer: Vec<i16>,
 }
 
 impl Bus {
@@ -23,6 +24,7 @@ impl Bus {
             ppu_palette: [0; 32],
             ppu_oam: [0; 256],
             ppu_pixels: vec![0; BUFFER_WIDTH * BUFFER_HEIGHT],
+            apu_buffer: Vec::new(),
         }
     }
 
@@ -56,7 +58,6 @@ impl Bus {
         match address {
             0x0000...0x1FFF => self.ram[(address % 2048) as usize] = value,
             0x4000...0x4013 | 0x4015 => {
-                //println!("APU {:04X} ({}) = {}", address, (address - 0x4000), value);
                 self.apu_registers[(address - 0x4000) as usize] = value;
             }
             _ => {}
