@@ -5,4 +5,7 @@ authors = ["Frederik De Bleser <frederik@debleser.be>", "Michael Smith <m@michae
 
 [dependencies]
 bitflags = "1.0.1"
-sdl2 = "0.31.0"
+
+[dependencies.sdl2]
+version = "0.31.0"
+features = ["ttf"]
