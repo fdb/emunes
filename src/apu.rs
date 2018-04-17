@@ -55,8 +55,6 @@ impl APU {
 
         // NOTE(m): Comment this out to silence output!
         // self.square_wave(bus, 440);
-
-        println!("APU registers: {:?}", bus.apu_registers);
     }
 }
 
