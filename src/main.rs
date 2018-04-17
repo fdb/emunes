@@ -9,6 +9,8 @@ use sdl2::event::Event;
 use sdl2::rect::Rect;
 use sdl2::keyboard::Keycode;
 use sdl2::audio::AudioSpecDesired;
+use sdl2::render::TextureQuery;
+use sdl2::pixels::Color;
 
 mod cpu;
 mod ppu;
@@ -20,6 +22,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
 use std::env;
+use std::{thread, time};
 
 use cpu::CPU;
 use ppu::PPU;
@@ -30,8 +33,12 @@ use apu::APU;
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
 const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
+const TARGET_FRAME_RATE: u32 = 60;
+const MS_PER_FRAME: u32 = 1_000 / TARGET_FRAME_RATE;
 
 const AUDIO_SAMPLE_RATE: u32 = 44_100;
+
+const OSD_FONT_SIZE: u16 = 14;
 
 pub trait BitReader {
     fn read_u8(&mut self) -> Result<u8, io::Error>;
@@ -294,11 +301,25 @@ fn main() {
         channels: Some(2),
         samples: Some(4)
     };
-
     let device = audio_subsystem.open_queue::<i16, _>(None, &desired_spec).unwrap();
+
+    // Initialize SDL TTF
+    let ttf_context = sdl2::ttf::init().unwrap();
+    let mut font = ttf_context.load_font("assets/SourceCodePro-Regular.ttf",
+                                         OSD_FONT_SIZE).unwrap();
+    font.set_style(sdl2::ttf::STYLE_BOLD);
+
+    // Initialize SDL Timer subsystem
+    // Declare variables for calculating framerate
+    let mut timer = sdl_context.timer().unwrap();
+    let mut last_frame_end_time = timer.ticks() as i32;
+    let mut current_fps = 0;
+    let mut frames_elapsed = 0;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
+        let mut frame_start_time = timer.ticks();
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -321,6 +342,8 @@ fn main() {
         );
 
         canvas.clear();
+
+        // Render pixel buffer
         canvas
             .copy(
                 &texture,
@@ -328,12 +351,74 @@ fn main() {
                 Some(Rect::new(0, 0, WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)),
             )
             .unwrap();
+
+        // Render OSD
+        // NOTE(m): Platform layer DEBUG code. Nothing to do with NES emulation.
+        // This should help us get rid of blocking println!() calls to output
+        // debugging information to the console and causing slowdown.
+
+        // OSD line 1
+        let apu_registers = console.bus.apu_registers;
+        let osd1_string = format!("APU: {:?}",
+                                  apu_registers);
+        let osd1_surface = font.render(&osd1_string)
+                               .solid(Color::RGBA(255, 0, 0, 255))
+                               .unwrap();
+        let osd1_texture = texture_creator.create_texture_from_surface(&osd1_surface).unwrap();
+        let TextureQuery { width, height, .. } = osd1_texture.query();
+        let osd1_target_rect = Rect::new(0,
+                                         WINDOW_HEIGHT as i32 - (2 * osd1_surface.height()) as i32,
+                                         osd1_surface.width(),
+                                         osd1_surface.height());
+        canvas.copy(&osd1_texture, None, Some(osd1_target_rect)).unwrap();
+
+        // OSD line 2
+        let cpu_cycles = console.cpu.cycles;
+        let ppu_cycle = console.ppu.cycle;
+        let osd2_string = format!("FPS: {:?} | CPU: {} | PPU: {}",
+                                  current_fps,
+                                  cpu_cycles,
+                                  ppu_cycle);
+        let osd2_surface = font.render(&osd2_string)
+                               .solid(Color::RGBA(255, 0, 0, 255))
+                               .unwrap();
+        let osd2_texture = texture_creator.create_texture_from_surface(&osd2_surface).unwrap();
+        let TextureQuery { width, height, .. } = osd2_texture.query();
+        let osd2_target_rect = Rect::new(0,
+                                         WINDOW_HEIGHT as i32 - osd2_surface.height() as i32,
+                                         osd2_surface.width(),
+                                         osd2_surface.height());
+        canvas.copy(&osd2_texture, None, Some(osd2_target_rect)).unwrap();
+
+
         canvas.present();
 
         // Output audio
         device.queue(&console.bus.apu_buffer);
         device.resume();
 
+        // Calculate framerate
+        // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
+        let frame_end_time = timer.ticks() as i32;
+        if last_frame_end_time < (frame_end_time - 1_000) {
+            last_frame_end_time = frame_end_time;
+            current_fps = frames_elapsed;
+            frames_elapsed = 0;
+        }
+        frames_elapsed = frames_elapsed + 1;
+
+        // Cap framerate
+        let frame_ms_elapsed = frame_end_time - frame_start_time as i32;
+        if frame_ms_elapsed < MS_PER_FRAME as i32 {
+            // Wait remaining time
+            let remaining_time = time::Duration::from_millis(MS_PER_FRAME as u64 -
+                                                             frame_ms_elapsed as u64);
+            thread::sleep(remaining_time);
+        } else {
+            // NOTE(m): We missed a frame. I.e. this frame took longer than the time
+            // we had at this refresh rate. Do we care?
+            // println!("Missed a frame!");
+        }
     }
     // for y in 0..256 {
     //     for x in 0..256 {
