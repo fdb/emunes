@@ -12,6 +12,7 @@ use sdl2::audio::AudioSpecDesired;
 use sdl2::render::TextureQuery;
 use sdl2::pixels::Color;
 
+mod console;
 mod cpu;
 mod ppu;
 mod bus;
@@ -24,6 +25,7 @@ use std::io;
 use std::env;
 use std::{thread, time};
 
+use console::Console;
 use cpu::CPU;
 use ppu::PPU;
 use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
@@ -126,33 +128,6 @@ pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
     match mapper_type {
         0 => Mapper2::new(cartridge),
         _ => panic!("Invalid mapper_type {:?}", mapper_type),
-    }
-}
-
-pub struct Console {
-    pub cpu: CPU,
-    pub ppu: PPU,
-    pub apu: APU,
-    pub bus: Bus,
-}
-
-impl Console {
-    pub fn reset(&mut self) {
-        self.cpu.reset(&mut self.bus)
-    }
-
-    pub fn log_string(&mut self) -> String {
-        self.cpu.log_string(&self.bus)
-    }
-
-    pub fn step(&mut self) -> u32 {
-        let cpu_cycles = self.cpu.step(&mut self.bus);
-        let ppu_cycles = cpu_cycles * 3;
-        for _ in 0..ppu_cycles {
-            self.ppu.step(&mut self.bus);
-        }
-        self.apu.step(&mut self.bus);
-        cpu_cycles
     }
 }
 
