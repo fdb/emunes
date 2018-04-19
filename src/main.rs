@@ -12,6 +12,7 @@ use sdl2::audio::AudioSpecDesired;
 use sdl2::render::TextureQuery;
 use sdl2::pixels::Color;
 
+mod console;
 mod cpu;
 mod ppu;
 mod bus;
@@ -24,6 +25,7 @@ use std::io;
 use std::env;
 use std::{thread, time};
 
+use console::Console;
 use cpu::CPU;
 use ppu::PPU;
 use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
@@ -126,33 +128,6 @@ pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
     match mapper_type {
         0 => Mapper2::new(cartridge),
         _ => panic!("Invalid mapper_type {:?}", mapper_type),
-    }
-}
-
-pub struct Console {
-    pub cpu: CPU,
-    pub ppu: PPU,
-    pub apu: APU,
-    pub bus: Bus,
-}
-
-impl Console {
-    pub fn reset(&mut self) {
-        self.cpu.reset(&mut self.bus)
-    }
-
-    pub fn log_string(&mut self) -> String {
-        self.cpu.log_string(&self.bus)
-    }
-
-    pub fn step(&mut self) -> u32 {
-        let cpu_cycles = self.cpu.step(&mut self.bus);
-        let ppu_cycles = cpu_cycles * 3;
-        for _ in 0..ppu_cycles {
-            self.ppu.step(&mut self.bus);
-        }
-        self.apu.step(&mut self.bus);
-        cpu_cycles
     }
 }
 
@@ -312,7 +287,7 @@ fn main() {
     // Initialize SDL Timer subsystem
     // Declare variables for calculating framerate
     let mut timer = sdl_context.timer().unwrap();
-    let mut last_frame_end_time = timer.ticks() as i32;
+    let mut last_frame_end_time = timer.ticks();
     let mut current_fps = 0;
     let mut frames_elapsed = 0;
 
@@ -399,24 +374,24 @@ fn main() {
         device.resume();
 
 
-        // Calculate framerate
+        // Calculate framerate.
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
-        let frame_end_time = timer.ticks() as i32;
-        if last_frame_end_time < (frame_end_time - 1_000) {
+        let frame_end_time = timer.ticks();
+        if (frame_end_time - last_frame_end_time) >= 1_000 {
             last_frame_end_time = frame_end_time;
             current_fps = frames_elapsed;
             frames_elapsed = 0;
 
-            // Calculate Cycles Per Second
+            // Calculate Cycles Per Second.
             let frame_end_cycles = console.cpu.cycles;
             current_cps = (frame_end_cycles - frame_start_cycles) * current_fps;
         }
         frames_elapsed = frames_elapsed + 1;
 
-        // Cap framerate
-        let frame_ms_elapsed = frame_end_time - frame_start_time as i32;
-        if frame_ms_elapsed < MS_PER_FRAME as i32 {
-            // Wait remaining time
+        // Cap framerate.
+        let frame_ms_elapsed = frame_end_time - frame_start_time;
+        if frame_ms_elapsed < MS_PER_FRAME {
+            // Wait remaining time.
             let remaining_time = time::Duration::from_millis(MS_PER_FRAME as u64 -
                                                              frame_ms_elapsed as u64);
             thread::sleep(remaining_time);
