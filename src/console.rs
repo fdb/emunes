@@ -1,4 +1,4 @@
-use cpu::CPU;
+use cpu::{CPU, CPU_FREQUENCY};
 use ppu::PPU;
 use bus::Bus;
 use apu::APU;
@@ -25,7 +25,16 @@ impl Console {
         for _ in 0..ppu_cycles {
             self.ppu.step(&mut self.bus);
         }
-        self.apu.step(&mut self.bus);
+        for _ in 0..cpu_cycles {
+            self.apu.step(&mut self.bus);
+        }
         cpu_cycles
+    }
+
+    pub fn step_seconds(&mut self, seconds: f64) {
+        let mut cycles = (CPU_FREQUENCY as f64 * seconds) as i32;
+        while cycles > 0 {
+            cycles = cycles - self.step() as i32;
+        }
     }
 }
