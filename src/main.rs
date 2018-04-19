@@ -287,7 +287,7 @@ fn main() {
     // Initialize SDL Timer subsystem
     // Declare variables for calculating framerate
     let mut timer = sdl_context.timer().unwrap();
-    let mut last_frame_end_time = timer.ticks() as i32;
+    let mut last_frame_end_time = timer.ticks();
     let mut current_fps = 0;
     let mut frames_elapsed = 0;
 
@@ -374,24 +374,24 @@ fn main() {
         device.resume();
 
 
-        // Calculate framerate
+        // Calculate framerate.
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
-        let frame_end_time = timer.ticks() as i32;
-        if last_frame_end_time < (frame_end_time - 1_000) {
+        let frame_end_time = timer.ticks();
+        if (frame_end_time - last_frame_end_time) >= 1_000 {
             last_frame_end_time = frame_end_time;
             current_fps = frames_elapsed;
             frames_elapsed = 0;
 
-            // Calculate Cycles Per Second
+            // Calculate Cycles Per Second.
             let frame_end_cycles = console.cpu.cycles;
             current_cps = (frame_end_cycles - frame_start_cycles) * current_fps;
         }
         frames_elapsed = frames_elapsed + 1;
 
-        // Cap framerate
-        let frame_ms_elapsed = frame_end_time - frame_start_time as i32;
-        if frame_ms_elapsed < MS_PER_FRAME as i32 {
-            // Wait remaining time
+        // Cap framerate.
+        let frame_ms_elapsed = frame_end_time - frame_start_time;
+        if frame_ms_elapsed < MS_PER_FRAME {
+            // Wait remaining time.
             let remaining_time = time::Duration::from_millis(MS_PER_FRAME as u64 -
                                                              frame_ms_elapsed as u64);
             thread::sleep(remaining_time);
