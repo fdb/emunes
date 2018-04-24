@@ -23,7 +23,8 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::io;
 use std::env;
-use std::{thread, time};
+use std::time::{Duration, Instant};
+use std::thread;
 
 use console::Console;
 use cpu::CPU;
@@ -35,8 +36,9 @@ use apu::APU;
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
 const WINDOW_HEIGHT: usize = BUFFER_HEIGHT * BUFFER_SCALE;
-const TARGET_FRAME_RATE: u32 = 60;
-const MS_PER_FRAME: u32 = 1_000 / TARGET_FRAME_RATE;
+const TARGET_FRAME_RATE: u64 = 60;
+const BILLION: u64 = 1_000_000_000;
+const FRAME_TIME_NS: u64 = BILLION / TARGET_FRAME_RATE;
 
 const AUDIO_SAMPLE_RATE: u32 = 44_100;
 
@@ -284,20 +286,19 @@ fn main() {
                                          OSD_FONT_SIZE).unwrap();
     font.set_style(sdl2::ttf::STYLE_BOLD);
 
-    // Initialize SDL Timer subsystem
-    // Declare variables for calculating framerate
-    let mut timer = sdl_context.timer().unwrap();
-    let mut last_frame_end_time = timer.ticks();
+    // Variables for calculating framerate
+    let mut last_frame_end_time = Instant::now();
     let mut current_fps = 0;
     let mut frames_elapsed = 0;
+
+    let mut last_timestamp = Instant::now();
 
     // Declare variables for calculating CPS (cycles per second)
     let mut current_cps = 0;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
-        let mut frame_start_time = timer.ticks();
-        let mut frame_start_cycles = console.cpu.cycles;
+        let start_time = Instant::now();
 
         for event in event_pump.poll_iter() {
             match event {
@@ -310,8 +311,16 @@ fn main() {
             }
         }
 
-        // The rest of the game loop goes here...
-        console.step();
+        // NOTE(m): Calculate how much time we need data for and
+        // ask the console api to provide it.
+        let timestamp = Instant::now();
+        let duration = timestamp - last_timestamp;
+        last_timestamp = timestamp;
+        // NOTE(m): Convert to seconds following fogleman's implementation.
+        // See https://doc.rust-lang.org/std/time/struct.Duration.html#method.as_secs
+        let dt = duration.as_secs() as f64
+                 + duration.subsec_nanos() as f64 * 1e-9;
+        console.step_seconds(dt);
 
         // Output video
         let _ = texture.update(
@@ -344,7 +353,6 @@ fn main() {
                                .solid(Color::RGBA(255, 0, 0, 255))
                                .unwrap();
         let osd1_texture = texture_creator.create_texture_from_surface(&osd1_surface).unwrap();
-        let TextureQuery { width, height, .. } = osd1_texture.query();
         let osd1_target_rect = Rect::new(0,
                                          WINDOW_HEIGHT as i32 - (2 * osd1_surface.height()) as i32,
                                          osd1_surface.width(),
@@ -359,7 +367,6 @@ fn main() {
                                .solid(Color::RGBA(255, 0, 0, 255))
                                .unwrap();
         let osd2_texture = texture_creator.create_texture_from_surface(&osd2_surface).unwrap();
-        let TextureQuery { width, height, .. } = osd2_texture.query();
         let osd2_target_rect = Rect::new(0,
                                          WINDOW_HEIGHT as i32 - osd2_surface.height() as i32,
                                          osd2_surface.width(),
@@ -376,29 +383,25 @@ fn main() {
 
         // Calculate framerate.
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
-        let frame_end_time = timer.ticks();
-        if (frame_end_time - last_frame_end_time) >= 1_000 {
+        let frame_end_time = Instant::now();
+        if (frame_end_time - last_frame_end_time) >= Duration::new(1, 0) {
             last_frame_end_time = frame_end_time;
             current_fps = frames_elapsed;
             frames_elapsed = 0;
 
-            // Calculate Cycles Per Second.
-            let frame_end_cycles = console.cpu.cycles;
-            current_cps = (frame_end_cycles - frame_start_cycles) * current_fps;
+            // // Calculate Cycles Per Second.
+            // let frame_end_cycles = console.cpu.cycles;
+            // current_cps = (frame_end_cycles - frame_start_cycles) * current_fps;
         }
         frames_elapsed = frames_elapsed + 1;
 
+
         // Cap framerate.
-        let frame_ms_elapsed = frame_end_time - frame_start_time;
-        if frame_ms_elapsed < MS_PER_FRAME {
-            // Wait remaining time.
-            let remaining_time = time::Duration::from_millis(MS_PER_FRAME as u64 -
-                                                             frame_ms_elapsed as u64);
-            thread::sleep(remaining_time);
-        } else {
-            // NOTE(m): We missed a frame. I.e. this frame took longer than the time
-            // we had at this refresh rate. Do we care?
-            // println!("Missed a frame!");
+        let end_time = Instant::now();
+        let time_elapsed = end_time - start_time;
+        let time_elapsed: u64 = time_elapsed.as_secs() * BILLION + time_elapsed.subsec_nanos() as u64;
+        if time_elapsed < FRAME_TIME_NS {
+            thread::sleep(Duration::new(0, (FRAME_TIME_NS - time_elapsed) as u32));
         }
     }
     // for y in 0..256 {

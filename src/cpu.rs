@@ -14,6 +14,8 @@ const ADDRESS_MODE_ZERO_PAGE: u8 = 11;
 const ADDRESS_MODE_ZERO_PAGE_X: u8 = 12;
 const ADDRESS_MODE_ZERO_PAGE_Y: u8 = 13;
 
+pub const CPU_FREQUENCY: u64 = 1_789_773;
+
 const INSTRUCTION_MODES: [u8; 256] = [
     6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2,
     2, 2, 2, 1, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1, 10, 9, 6, 9, 12, 12, 12, 12, 6, 3,
