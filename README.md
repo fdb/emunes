@@ -10,7 +10,7 @@ We're building this out in the open. The CPU emulator works but we haven't imple
 
 ```
 # Install dependencies
-sudo apt install curl libsdl2-dev clang git
+sudo apt install curl libsdl2-dev libsdl2-ttf-dev clang git
 
 # Install Rust, if needed
 curl https://sh.rustup.rs -sSf | sh
