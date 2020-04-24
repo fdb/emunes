@@ -29,7 +29,7 @@ use std::thread;
 use console::Console;
 use cpu::CPU;
 use ppu::PPU;
-use bus::{Bus, BUFFER_WIDTH, BUFFER_HEIGHT};
+use bus::{Bus, BUFFER_HEIGHT, BUFFER_WIDTH};
 use cartridge::Cartridge;
 use apu::APU;
 
@@ -234,15 +234,29 @@ fn main() {
     let mut x_off = 0;
     let mut y_off = 0;
     let mut chr_off = 0;
-    while chr_off < 8192 {
+    while chr_off < 4096 {
         for y in 0..8 {
             for x in 0..8 {
-                let c = *(&console.bus.cartridge.chr[y * 8 + x + chr_off]) as u32;
-                console.bus.ppu_pixels[((y_off + y) * BUFFER_WIDTH) + x + x_off] =
-                    (0xFF << 24) | (c << 16) | (c << 8) | c;
+                // let b1 = console.bus.cartridge.chr[chr_off] >> x & 0x01;
+                let plane0 = console.bus.cartridge.chr[chr_off];
+                let plane1 = console.bus.cartridge.chr[chr_off + 8];
+
+                let b0 = (plane0 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
+                let b1 = (plane1 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
+
+                let c;
+                if b0 == 0 {
+                    c = 0;
+                } else {
+                    c = 0xFFFFFF;
+                }
+                //let c = *(&console.bus.cartridge.chr[y * 8 + x + chr_off]) as u32;
+                console.bus.ppu_pixels[((y_off + y) * BUFFER_WIDTH) + x + x_off] = c;
+                // (0xFF << 24) | (c << 16) | (c << 8) | c;
             }
+            chr_off += 2;
         }
-        chr_off += 64;
+        //chr_off += 64;
         x_off += 10;
         if x_off > BUFFER_WIDTH - 10 {
             x_off = 0;
@@ -276,14 +290,17 @@ fn main() {
     let desired_spec = AudioSpecDesired {
         freq: Some(AUDIO_SAMPLE_RATE as i32),
         channels: Some(2),
-        samples: Some(4)
+        samples: Some(4),
     };
-    let device = audio_subsystem.open_queue::<i16, _>(None, &desired_spec).unwrap();
+    let device = audio_subsystem
+        .open_queue::<i16, _>(None, &desired_spec)
+        .unwrap();
 
     // Initialize SDL TTF
     let ttf_context = sdl2::ttf::init().unwrap();
-    let mut font = ttf_context.load_font("assets/SourceCodePro-Regular.ttf",
-                                         OSD_FONT_SIZE).unwrap();
+    let mut font = ttf_context
+        .load_font("assets/SourceCodePro-Regular.ttf", OSD_FONT_SIZE)
+        .unwrap();
     font.set_style(sdl2::ttf::STYLE_BOLD);
 
     // Variables for calculating framerate
@@ -318,8 +335,7 @@ fn main() {
         last_timestamp = timestamp;
         // NOTE(m): Convert to seconds following fogleman's implementation.
         // See https://doc.rust-lang.org/std/time/struct.Duration.html#method.as_secs
-        let dt = duration.as_secs() as f64
-                 + duration.subsec_nanos() as f64 * 1e-9;
+        let dt = duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9;
         console.step_seconds(dt);
 
         // Output video
@@ -347,39 +363,46 @@ fn main() {
 
         // OSD line 1
         let apu_registers = console.bus.apu_registers;
-        let osd1_string = format!("APU: {:?}",
-                                  apu_registers);
+        let osd1_string = format!("APU: {:?}", apu_registers);
         let osd1_surface = font.render(&osd1_string)
-                               .solid(Color::RGBA(255, 0, 0, 255))
-                               .unwrap();
-        let osd1_texture = texture_creator.create_texture_from_surface(&osd1_surface).unwrap();
-        let osd1_target_rect = Rect::new(0,
-                                         WINDOW_HEIGHT as i32 - (2 * osd1_surface.height()) as i32,
-                                         osd1_surface.width(),
-                                         osd1_surface.height());
-        canvas.copy(&osd1_texture, None, Some(osd1_target_rect)).unwrap();
+            .solid(Color::RGBA(255, 0, 0, 255))
+            .unwrap();
+        let osd1_texture = texture_creator
+            .create_texture_from_surface(&osd1_surface)
+            .unwrap();
+        let osd1_target_rect = Rect::new(
+            0,
+            WINDOW_HEIGHT as i32 - (2 * osd1_surface.height()) as i32,
+            osd1_surface.width(),
+            osd1_surface.height(),
+        );
+        canvas
+            .copy(&osd1_texture, None, Some(osd1_target_rect))
+            .unwrap();
 
         // OSD line 2
-        let osd2_string = format!("FPS: {:?} | CPS: {}",
-                                  current_fps,
-                                  current_cps);
+        let osd2_string = format!("FPS: {:?} | CPS: {}", current_fps, current_cps);
         let osd2_surface = font.render(&osd2_string)
-                               .solid(Color::RGBA(255, 0, 0, 255))
-                               .unwrap();
-        let osd2_texture = texture_creator.create_texture_from_surface(&osd2_surface).unwrap();
-        let osd2_target_rect = Rect::new(0,
-                                         WINDOW_HEIGHT as i32 - osd2_surface.height() as i32,
-                                         osd2_surface.width(),
-                                         osd2_surface.height());
-        canvas.copy(&osd2_texture, None, Some(osd2_target_rect)).unwrap();
-
+            .solid(Color::RGBA(255, 0, 0, 255))
+            .unwrap();
+        let osd2_texture = texture_creator
+            .create_texture_from_surface(&osd2_surface)
+            .unwrap();
+        let osd2_target_rect = Rect::new(
+            0,
+            WINDOW_HEIGHT as i32 - osd2_surface.height() as i32,
+            osd2_surface.width(),
+            osd2_surface.height(),
+        );
+        canvas
+            .copy(&osd2_texture, None, Some(osd2_target_rect))
+            .unwrap();
 
         canvas.present();
 
         // Output audio
         device.queue(&console.bus.apu_buffer);
         device.resume();
-
 
         // Calculate framerate.
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
@@ -395,11 +418,11 @@ fn main() {
         }
         frames_elapsed = frames_elapsed + 1;
 
-
         // Cap framerate.
         let end_time = Instant::now();
         let time_elapsed = end_time - start_time;
-        let time_elapsed: u64 = time_elapsed.as_secs() * BILLION + time_elapsed.subsec_nanos() as u64;
+        let time_elapsed: u64 =
+            time_elapsed.as_secs() * BILLION + time_elapsed.subsec_nanos() as u64;
         if time_elapsed < FRAME_TIME_NS {
             thread::sleep(Duration::new(0, (FRAME_TIME_NS - time_elapsed) as u32));
         }

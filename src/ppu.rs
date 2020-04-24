@@ -20,7 +20,20 @@ pub struct PPU {
     // Registers
     pub even_odd: bool,
 
-    pub show_background: bool,
+    // Sprite variables
+    pub sprite_count: u32,
+    pub sprite_patterns: [u32; 8],
+    pub sprite_positions: [u8; 8],
+
+    // PPUMASK ($2001) Flags
+    pub grayscale_flag: u8,
+    pub show_left_background_flag: u8,
+    pub show_left_sprites_flag: u8,
+    pub show_background_flag: u8,
+    pub show_sprites_flag: u8,
+    pub red_tint_flag: u8,
+    pub green_tint_flag: u8,
+    pub blue_tint_flag: u8,
 
     pub tile_data: u64,
     pub palette_data: [u8; 32],
@@ -33,7 +46,19 @@ impl PPU {
             scan_line: 0,
             frame: 0,
             even_odd: false,
-            show_background: true,
+            sprite_count: 0,
+            sprite_patterns: [0; 8],
+            sprite_positions: [0; 8],
+
+            grayscale_flag: 0,
+            show_left_background_flag: 0,
+            show_left_sprites_flag: 0,
+            show_background_flag: 0,
+            show_sprites_flag: 0,
+            red_tint_flag: 0,
+            green_tint_flag: 0,
+            blue_tint_flag: 0,
+
             tile_data: 0,
             palette_data: [0; 32],
         }
@@ -44,12 +69,18 @@ impl PPU {
     }
 
     pub fn background_pixel(&mut self) -> u8 {
-        if self.show_background {
-            let data = self.fetch_tile_data();
-            (data & 0x0F) as u8
-        } else {
-            0
+        if self.show_background_flag == 0 {
+            return 0;
         }
+        let data = self.fetch_tile_data(); // FIXME >> ((7 - self.x) * 4)
+        (data & 0x0F) as u8
+    }
+
+    pub fn sprite_pixel(&mut self) -> (u8, u8) {
+        if self.show_sprites_flag == 0 {
+            return (0, 0);
+        }
+        (0, 0)
     }
 
     pub fn read_palette(&self, address: u16) -> u8 {
