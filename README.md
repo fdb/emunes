@@ -22,6 +22,24 @@ git clone https://github.com/fdb/emunes.git
 cd emunes
 ```
 
+## Installation (macOS)
+
+```
+# Install dependencies (Homebrew)
+brew install sdl2 sdl2_ttf
+
+# Install Rust, if needed
+curl https://sh.rustup.rs -sSf | sh
+
+# Clone the repo
+git clone https://github.com/fdb/emunes.git
+cd emunes
+```
+
+On Apple Silicon, Homebrew installs into `/opt/homebrew`, which is not on the
+default linker search path. This repo's `.cargo/config.toml` already adds it,
+so no extra steps are needed.
+
 ## Running
 
     cargo run <romfile.nes>
