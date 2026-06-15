@@ -1,0 +1,6 @@
+# Apple Silicon Homebrew installs into /opt/homebrew, which is not on the
+# default linker search path. Without this, linking SDL2 / SDL2_ttf fails with
+# "library 'SDL2_ttf' not found". Scoped to the arm64 macOS target so Linux
+# (incl. Travis CI) builds are unaffected.
+[target.aarch64-apple-darwin]
+rustflags = ["-L", "/opt/homebrew/lib"]
