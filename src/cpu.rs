@@ -87,7 +87,9 @@ const INSTRUCTION_NAMES: &'static [&'static str] = &[
 ];
 
 bitflags! {
-    #[derive(Default)]
+    // bitflags 2.x no longer auto-derives these; opt in to match the trait
+    // surface 1.x used to provide.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct Flags: u8 {
         const CARRY             = 1 << 0;
         const ZERO              = 1 << 1;
@@ -316,7 +318,7 @@ impl CPU {
             self.a,
             self.x,
             self.y,
-            self.flags,
+            self.flags.bits(),
             self.sp,
             cycles
         )

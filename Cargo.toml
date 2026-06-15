@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Frederik De Bleser <frederik@debleser.be>", "Michael Smith <m@michaelsmith.be>"]
 
 [dependencies]
-bitflags = "1.0.1"
+bitflags = "2"
 
 [dependencies.sdl2]
 version = "0.31.0"
