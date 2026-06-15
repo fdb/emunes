@@ -1,3 +1,8 @@
+// The PPU and APU are still under construction; their registers, tables, and
+// render methods are written but not yet wired up. Allow dead code crate-wide
+// so the work-in-progress doesn't drown out real warnings.
+#![allow(dead_code)]
+
 #[macro_use]
 extern crate bitflags;
 extern crate sdl2;
@@ -9,7 +14,6 @@ use sdl2::event::Event;
 use sdl2::rect::Rect;
 use sdl2::keyboard::Keycode;
 use sdl2::audio::AudioSpecDesired;
-use sdl2::render::TextureQuery;
 use sdl2::pixels::Color;
 
 mod console;
@@ -101,7 +105,7 @@ pub struct Mapper2<'a> {
 }
 
 impl<'a> Mapper2<'a> {
-    pub fn new(cartridge: &mut Cartridge) -> Mapper2 {
+    pub fn new(cartridge: &mut Cartridge) -> Mapper2<'_> {
         Mapper2 { cartridge }
     }
 }
@@ -126,7 +130,7 @@ impl<'a> Mapper for Mapper2<'a> {
     fn step(&self) {}
 }
 
-pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2 {
+pub fn new_mapper(mapper_type: u8, cartridge: &mut Cartridge) -> Mapper2<'_> {
     match mapper_type {
         0 => Mapper2::new(cartridge),
         _ => panic!("Invalid mapper_type {:?}", mapper_type),
@@ -229,7 +233,7 @@ fn main() {
     let mut console = Console { cpu, ppu, apu, bus };
 
     console.reset();
-    let mut buffer: Vec<u32> = vec![0; WINDOW_WIDTH * WINDOW_HEIGHT];
+    let _buffer: Vec<u32> = vec![0; WINDOW_WIDTH * WINDOW_HEIGHT];
 
     let mut x_off = 0;
     let mut y_off = 0;
@@ -242,7 +246,7 @@ fn main() {
                 let plane1 = console.bus.cartridge.chr[chr_off + 8];
 
                 let b0 = (plane0 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
-                let b1 = (plane1 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
+                let _b1 = (plane1 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
 
                 let c;
                 if b0 == 0 {
@@ -311,7 +315,7 @@ fn main() {
     let mut last_timestamp = Instant::now();
 
     // Declare variables for calculating CPS (cycles per second)
-    let mut current_cps = 0;
+    let current_cps = 0;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {

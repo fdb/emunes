@@ -50,7 +50,7 @@ impl APU {
         bus.apu_buffer = samples;
     }
 
-    pub fn step(&mut self, bus: &mut Bus) {
+    pub fn step(&mut self, _bus: &mut Bus) {
         self.tick();
 
         // NOTE(m): Comment this out to silence output!

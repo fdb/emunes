@@ -200,7 +200,7 @@ impl CPU {
             }
             ADDRESS_MODE_INDIRECT => bus.read_16_bug(bus.read_16(self.pc + 1)),
             ADDRESS_MODE_INDIRECT_INDEXED => {
-                let address = bus.read_16_bug((bus.read(self.pc + 1) as u16))
+                let address = bus.read_16_bug(bus.read(self.pc + 1) as u16 )
                     .wrapping_add(self.y as u16);
                 page_crossed = pages_differ(address.wrapping_sub(self.y as u16), address);
                 address
@@ -215,10 +215,10 @@ impl CPU {
             }
             ADDRESS_MODE_ZERO_PAGE => bus.read(self.pc + 1) as u16,
             ADDRESS_MODE_ZERO_PAGE_X => {
-                ((bus.read(self.pc + 1) as u16).wrapping_add(self.x as u16) & 0xFF as u16)
+                (bus.read(self.pc + 1) as u16).wrapping_add(self.x as u16) & 0xFF as u16 
             }
             ADDRESS_MODE_ZERO_PAGE_Y => {
-                ((bus.read(self.pc + 1) as u16).wrapping_add(self.y as u16) & 0xFF as u16)
+                (bus.read(self.pc + 1) as u16).wrapping_add(self.y as u16) & 0xFF as u16 
             }
             _ => panic!("Invalid address mode {}", address_mode),
         };
@@ -809,7 +809,7 @@ impl CPU {
             0x63 | 0x67 | 0x6F | 0x73 | 0x77 | 0x7B | 0x7F => {
                 let a = self.a;
                 let mut b: u8 = bus.read(address);
-                let mut c: u8 = if self.flags.intersects(Flags::CARRY) {
+                let c: u8 = if self.flags.intersects(Flags::CARRY) {
                     1
                 } else {
                     0

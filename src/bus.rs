@@ -78,12 +78,12 @@ impl Bus {
         let address = address % 0x4000;
         match address {
             0x0000..=0x1FFF => self.mapper_read(address),
-            0x2000..=0x3F00 => {
-                let mode = self.cartridge.mirror_mode;
+            0x2000..=0x3EFF => {
+                let _mode = self.cartridge.mirror_mode;
                 // FIXME: this is wrong
                 self.ppu_name_table[address as usize]
             }
-            0x3F00..=0x4000 => self.ppu_palette[(address % 32) as usize],
+            0x3F00..=0x3FFF => self.ppu_palette[(address % 32) as usize],
             _ => panic!("Invalid bus PPU read at address {}", address),
         }
     }

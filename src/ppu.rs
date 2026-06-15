@@ -115,11 +115,11 @@ impl PPU {
         }
     }
 
-    pub fn step(&mut self, bus: &mut Bus) {
+    pub fn step(&mut self, _bus: &mut Bus) {
         self.tick();
         let pre_line = self.scan_line == 261;
         let visible_line = self.scan_line < 240;
-        let render_line = pre_line || visible_line;
+        let _render_line = pre_line || visible_line;
 
         if visible_line {
             // FIXME: render_pixel is currently not complete and will fail.
