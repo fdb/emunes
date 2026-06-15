@@ -1,6 +1,7 @@
 [package]
 name = "emunes"
 version = "0.1.0"
+edition = "2021"
 authors = ["Frederik De Bleser <frederik@debleser.be>", "Michael Smith <m@michaelsmith.be>"]
 
 [dependencies]

@@ -26,12 +26,12 @@ use std::env;
 use std::time::{Duration, Instant};
 use std::thread;
 
-use console::Console;
-use cpu::CPU;
-use ppu::PPU;
-use bus::{Bus, BUFFER_HEIGHT, BUFFER_WIDTH};
-use cartridge::Cartridge;
-use apu::APU;
+use crate::console::Console;
+use crate::cpu::CPU;
+use crate::ppu::PPU;
+use crate::bus::{Bus, BUFFER_HEIGHT, BUFFER_WIDTH};
+use crate::cartridge::Cartridge;
+use crate::apu::APU;
 
 const BUFFER_SCALE: usize = 3;
 const WINDOW_WIDTH: usize = BUFFER_WIDTH * BUFFER_SCALE;
@@ -109,16 +109,16 @@ impl<'a> Mapper2<'a> {
 impl<'a> Mapper for Mapper2<'a> {
     fn read(&self, address: u16) -> u8 {
         match address {
-            0x0000...0x2000 => self.cartridge.chr[address as usize],
-            0x2001...0xC000 => self.cartridge.prg[address as usize],
+            0x0000..=0x2000 => self.cartridge.chr[address as usize],
+            0x2001..=0xC000 => self.cartridge.prg[address as usize],
             _ => panic!("Invalid mapper read {:?}", address),
         }
     }
 
     fn write(&mut self, address: u16, value: u8) {
         match address {
-            0x0000...0x2000 => self.cartridge.chr[address as usize] = value,
-            0x2001...0xC000 => self.cartridge.prg[address as usize] = value,
+            0x0000..=0x2000 => self.cartridge.chr[address as usize] = value,
+            0x2001..=0xC000 => self.cartridge.prg[address as usize] = value,
             _ => panic!("Invalid mapper write {:?}", address),
         }
     }

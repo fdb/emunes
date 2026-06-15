@@ -1,7 +1,7 @@
-use cpu::{CPU, CPU_FREQUENCY};
-use ppu::PPU;
-use bus::Bus;
-use apu::APU;
+use crate::cpu::{CPU, CPU_FREQUENCY};
+use crate::ppu::PPU;
+use crate::bus::Bus;
+use crate::apu::APU;
 
 pub struct Console {
     pub cpu: CPU,

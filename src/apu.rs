@@ -1,4 +1,4 @@
-use Bus;
+use crate::bus::Bus;
 
 const AUDIO_BUFFER_SIZE: u32 = 50 * 1024;
 const LENGTH_TABLE: [u8; 32] = [
